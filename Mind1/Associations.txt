@@ -1,0 +1,14 @@
+1 bear has fur 
+2 jack is a dog 
+3 jordan is a cat 
+4 cat eats bird 
+5 bird eats worm 
+6 bird eats seed 
+7 snake eats mouse 
+8 cat eats mouse 
+9 cat has tail 
+10 dog has tail 
+11 dog has fur 
+12 cat has fur 
+13 bird has feathers 
+14 robin is a bird 
