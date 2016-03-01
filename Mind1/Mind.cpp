@@ -135,6 +135,30 @@ CAssociation *CMind::BuildAssociation(CString& Input, int ID)
 	return BuildAssociation(words, ID);
 }
 
+void CMind::CleanUpAssociations()
+{
+	CAssociation *assoc = NULL;
+	CConcept *concept = NULL;
+	int id = 0;
+
+	for (int id = 1; id <= last_assoc_id; id++)
+	{
+		if (!associations.Lookup(id, assoc))
+		{
+			continue;
+		}
+		POSITION pos2 = assoc->concepts.GetHeadPosition();
+		while (pos2)
+		{
+			int concept_id = assoc->concepts.GetNext(pos2);
+			if (!concepts.Lookup(concept_id, concept))
+			{
+				// delete assoc
+			}
+		}
+	}
+}
+
 //int CMind::ProcessAudio(TCHAR *Word)
 //{
 //	CTTNode *res = NULL;
@@ -182,18 +206,26 @@ CAssociation *CMind::BuildAssociation(CString& Input, int ID)
 // ----------------------------------------------------------------------------------------
 CConcept *CMind::EnsureConcept(LPCTSTR Name, int ID)
 {
+	if (*Name == NULL)
+		return NULL;
+
+	int id = ID;
 	CConcept *concept = NULL;
-	if (! words.Lookup(Name, (void *&)concept) )
+	if (!concept_names.Lookup(Name, (void *&)id))
 	{
-		if (ID == 0)
+		if (id == 0)
 		{
-			ID = ++last_concept_id;
+			id = ++last_concept_id;
 		}
-		concept = new CConcept(ID, Name);
+		concept = new CConcept(id, Name);
 		concepts.SetAt(concept->id, concept);
-		words.SetAt(concept->name, concept);
+		concept_names.SetAt(concept->name, (void *)concept->id);
 	}
-	last_concept_id = max(last_concept_id, ID);
+	else
+	{
+		concepts.Lookup(id, concept);
+	}
+	last_concept_id = max(last_concept_id, id);
 	return concept;
 }
 
@@ -244,6 +276,37 @@ int CMind::Load()
 		last_assoc_id = max_id;
 	}
 	return num;
+}
+
+// ----------------------------------------------------------------------------------------
+int CMind::PurgeAssociation(int ID)
+{
+	CAssociation *a = NULL;
+	if (associations.Lookup(ID, a))
+	{
+		associations.RemoveKey(a->id);
+		delete a;
+	}
+	return ID;
+}
+
+// ----------------------------------------------------------------------------------------
+int CMind::PurgeConcept(int ID, LPCTSTR Name)
+{
+	if (ID == 0)
+	{
+		concept_names.Lookup(Name, (void *&)ID);
+	}
+
+	CConcept *c = NULL;
+	if (concepts.Lookup(ID, c))
+	{
+		concept_names.RemoveKey(c->name);
+		concepts.RemoveKey(c->id);
+		CleanUpAssociations();
+		delete c;
+	}
+	return ID;
 }
 
 // ----------------------------------------------------------------------------------------

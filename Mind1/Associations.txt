@@ -12,3 +12,4 @@
 12 cat has fur 
 13 bird has feathers 
 14 robin is a bird 
+15 bird has beak 

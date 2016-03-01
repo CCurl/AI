@@ -22,7 +22,7 @@
 class CAssociation
 {
 public:
-	CAssociation() {}
+	CAssociation() { id = 0; }
 	~CAssociation();
 	int id;
 	CList<int> concepts;
@@ -34,6 +34,7 @@ public:
 	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; }
 	CConcept() { id = 0; }
 	int id;
+	CList<int> association_ids;
 	CString name;
 };
 
@@ -45,17 +46,20 @@ public:
 
 	CAssociation *BuildAssociation(CStrings& Words, int ID);
 	CAssociation *BuildAssociation(CString& Input, int ID);
+	void CleanUpAssociations();
 	void DumpConcepts(CString& Output, FILE *fp);
 	void DumpAssociations(CString& Output, FILE *fp);
 	CConcept *EnsureConcept(LPCTSTR name, int ID);
 	void Think(CString& Output);
 
 	int Load();
+	int PurgeAssociation(int ID);
+	int PurgeConcept(int ConceptID, LPCTSTR Name);
 	int Save();
 
 	CMap<int, int, CConcept *, CConcept *> concepts;
 	CMap<int, int, CAssociation *, CAssociation *> associations;
-	CMapStringToPtr words;
+	CMapStringToPtr concept_names;
 
 	int last_concept_id;
 	int last_assoc_id;
