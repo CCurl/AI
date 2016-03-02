@@ -97,31 +97,30 @@ void CMind::DumpAssociations(CString& Output, FILE *fp)
 // ----------------------------------------------------------------------------------------
 CAssociation *CMind::BuildAssociation(CStrings& Words, int ID)
 {
-	CAssociation *assoc = new CAssociation();
+	CAssociation *assoc = NULL;
 	CString *word = Words.GetFirst();
-	int num = 0;
-	while (word)
+	if (Words.GetCount() > 1)
 	{
-		if (word->GetLength())
-		{
-			CConcept *concept = EnsureConcept(*word, 0);
-			assoc->concepts.AddTail(concept->id);
-			num++;
-		}
-		word = Words.GetNext();
-	}
-
-	if (num > 1)
-	{
+		assoc = new CAssociation();
 		if (ID == 0)
 			ID = ++last_assoc_id;
 		assoc->id = ID;
 		associations.SetAt(assoc->id, assoc);
 	}
-	else
+
+	while (word)
 	{
-		delete assoc;
-		assoc = NULL;
+		CConcept *concept = NULL;
+		if (word->GetLength())
+		{
+			concept = EnsureConcept(*word, 0);
+			if (assoc)
+			{
+				assoc->concepts.AddTail(concept->id);
+				concept->associations.Add(assoc->id);
+			}
+		}
+		word = Words.GetNext();
 	}
 
 	return assoc;
@@ -140,17 +139,17 @@ void CMind::CleanUpAssociations()
 	CAssociation *assoc = NULL;
 	CConcept *concept = NULL;
 	CList<CAssociation *>delete_these;
+	int id, num, concept_id;
 
-	POSITION pos = concepts.GetStartPosition();
+	POSITION pos = associations.GetStartPosition();
 	while (pos)
 	{
-		int id;
 		associations.GetNextAssoc(pos, id, assoc);
 
 		POSITION pos2 = assoc->concepts.GetHeadPosition();
 		while (pos2)
 		{
-			int concept_id = assoc->concepts.GetNext(pos2);
+			concept_id = assoc->concepts.GetNext(pos2);
 			if (!concepts.Lookup(concept_id, concept))
 			{
 				delete_these.AddTail(assoc);
@@ -159,12 +158,64 @@ void CMind::CleanUpAssociations()
 		}
 	}
 
+	num = 0;
 	pos = delete_these.GetHeadPosition();
 	while (pos)
 	{
 		assoc = delete_these.GetNext(pos);
 		associations.RemoveKey(assoc->id);
 		delete assoc;
+		num++;
+	}
+
+	if (num > 0)
+	{
+		CleanUpAssociations();
+	}
+}
+
+void CMind::CleanUpConcepts()
+{
+	CAssociation *assoc = NULL;
+	CConcept *concept = NULL;
+	CList<CConcept *>delete_these;
+	int id, num, assoc_id;
+
+	POSITION pos = concepts.GetStartPosition();
+	while (pos)
+	{
+		concepts.GetNextAssoc(pos, id, concept);
+
+		num = concept->associations.GetCount();
+		for (int i = 0; i < num; i++)
+		{
+			assoc_id = concept->associations.GetAt(i);
+			if (!associations.Lookup(assoc_id, assoc))
+			{
+				concept->associations.RemoveAt(i);
+				i--;
+			}
+		}
+
+		if (concept->associations.GetCount() == 0)
+		{
+			delete_these.AddTail(concept);
+		}
+	}
+
+	num = 0;
+	pos = delete_these.GetHeadPosition();
+	while (pos)
+	{
+		concept = delete_these.GetNext(pos);
+		concepts.RemoveKey(concept->id);
+		delete concept;
+		num++;
+	}
+
+	if (num > 0)
+	{
+		CleanUpAssociations();
 	}
 }
 
@@ -341,10 +392,22 @@ int CMind::Save()
 }
 
 // ----------------------------------------------------------------------------------------
-void CMind::Think(CString& Output)
+bool CMind::Think(CString& Output)
 {
 	static int cycle = 0;
-	Output.Format(_T("thought %d"), ++cycle);
+
+	if (cycle % 10 == 0)
+	{
+		CleanUpConcepts();
+		CleanUpAssociations();
+		Output.Format(_T("cleanup ..."), ++cycle);
+		return true;
+	}
+	else
+	{
+		Output.Format(_T("Please tell me more."), ++cycle);
+	}
+	return false;
 }
 
 // ----------------------------------------------------------------------------------------

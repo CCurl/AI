@@ -31,7 +31,11 @@ protected:
 public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
+	afx_msg void OnBnClickedSave();
+	afx_msg void OnBnClickedLoad();
 	afx_msg void OnTimer(UINT_PTR TimerID);
+
+	void Refresh();
 
 	// CMind theMind;
 	CMind theMind;
@@ -40,6 +44,4 @@ public:
 	CString output2;
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
-	afx_msg void OnBnClickedSave();
-	afx_msg void OnBnClickedLoad();
 };

@@ -59,13 +59,8 @@ BOOL CMind1Dlg::OnInitDialog()
 	// TODO: Add extra initialization here
 	ThinkTimerID = 101;
 	ThinkDelay = 1000;
+	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
-
-	theMind.DumpConcepts(output1, NULL);
-	theMind.DumpAssociations(output2, NULL);
-	output1.Replace(_T("\n"), _T("\r\n"));
-	output2.Replace(_T("\n"), _T("\r\n"));
-	UpdateData(FALSE);
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -111,15 +106,8 @@ void CMind1Dlg::OnBnClickedOk()
 	UpdateData(TRUE);
 
 	theMind.BuildAssociation(theInfo, 0);
-	theMind.DumpConcepts(output1, NULL);
-	theMind.DumpAssociations(output2, NULL);
-	//theMind.TakeInput_Text(theInfo);
-	//theMind.memory.Dump(theOutput);
 	theInfo.Empty();
-
-	output1.Replace(_T("\n"), _T("\r\n"));
-	output2.Replace(_T("\n"), _T("\r\n"));
-	UpdateData(FALSE);
+	Refresh();
 }
 
 
@@ -133,8 +121,13 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 {
 	KillTimer(ThinkTimerID);
 
-	theMind.Think(lastThought);
+	bool refresh = theMind.Think(lastThought);
 	SetDlgItemText(IDC_Thought, lastThought);
+
+	if (refresh)
+	{
+		Refresh();
+	}
 
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 }
@@ -144,13 +137,17 @@ void CMind1Dlg::OnBnClickedSave()
 	theMind.Save();
 }
 
-
-void CMind1Dlg::OnBnClickedLoad()
+void CMind1Dlg::Refresh()
 {
-	theMind.Load();
 	theMind.DumpConcepts(output1, NULL);
 	theMind.DumpAssociations(output2, NULL);
 	output1.Replace(_T("\n"), _T("\r\n"));
 	output2.Replace(_T("\n"), _T("\r\n"));
 	UpdateData(FALSE);
+}
+
+void CMind1Dlg::OnBnClickedLoad()
+{
+	theMind.Load();
+	Refresh();
 }

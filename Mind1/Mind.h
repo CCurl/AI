@@ -19,12 +19,17 @@
 //	int concept_id;
 //};
 
+typedef enum {
+	unknown, is_a, has_a, synonym, antonym, modifier, plural, singular
+} ASSOC_TYPE;
+
 class CAssociation
 {
 public:
-	CAssociation() { id = 0; }
+	CAssociation() { id = 0; type = unknown; }
 	~CAssociation();
 	int id;
+	ASSOC_TYPE type;
 	CList<int> concepts;
 };
 
@@ -34,7 +39,7 @@ public:
 	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; }
 	CConcept() { id = 0; }
 	int id;
-	CList<int> association_ids;
+	CArray<int> associations;
 	CString name;
 };
 
@@ -47,10 +52,11 @@ public:
 	CAssociation *BuildAssociation(CStrings& Words, int ID);
 	CAssociation *BuildAssociation(CString& Input, int ID);
 	void CleanUpAssociations();
+	void CleanUpConcepts();
 	void DumpConcepts(CString& Output, FILE *fp);
 	void DumpAssociations(CString& Output, FILE *fp);
 	CConcept *EnsureConcept(LPCTSTR name, int ID);
-	void Think(CString& Output);
+	bool Think(CString& Output);
 
 	int Load();
 	int PurgeAssociation(int ID);
