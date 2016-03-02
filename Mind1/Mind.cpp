@@ -139,23 +139,32 @@ void CMind::CleanUpAssociations()
 {
 	CAssociation *assoc = NULL;
 	CConcept *concept = NULL;
-	int id = 0;
+	CList<CAssociation *>delete_these;
 
-	for (int id = 1; id <= last_assoc_id; id++)
+	POSITION pos = concepts.GetStartPosition();
+	while (pos)
 	{
-		if (!associations.Lookup(id, assoc))
-		{
-			continue;
-		}
+		int id;
+		associations.GetNextAssoc(pos, id, assoc);
+
 		POSITION pos2 = assoc->concepts.GetHeadPosition();
 		while (pos2)
 		{
 			int concept_id = assoc->concepts.GetNext(pos2);
 			if (!concepts.Lookup(concept_id, concept))
 			{
-				// delete assoc
+				delete_these.AddTail(assoc);
+				break;
 			}
 		}
+	}
+
+	pos = delete_these.GetHeadPosition();
+	while (pos)
+	{
+		assoc = delete_these.GetNext(pos);
+		associations.RemoveKey(assoc->id);
+		delete assoc;
 	}
 }
 

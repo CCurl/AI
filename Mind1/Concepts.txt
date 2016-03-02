@@ -17,3 +17,6 @@
 17 feathers
 18 robin
 19 beak
+20 Capitals
+21 hockey
+22 team
