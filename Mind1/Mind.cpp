@@ -134,6 +134,7 @@ CAssociation *CMind::BuildAssociation(CString& Input, int ID)
 	return BuildAssociation(words, ID);
 }
 
+// ----------------------------------------------------------------------------------------
 void CMind::CleanUpAssociations()
 {
 	CAssociation *assoc = NULL;
@@ -174,11 +175,13 @@ void CMind::CleanUpAssociations()
 	}
 }
 
+// ----------------------------------------------------------------------------------------
 void CMind::CleanUpConcepts()
 {
 	CAssociation *assoc = NULL;
 	CConcept *concept = NULL;
-	CList<CConcept *>delete_these;
+	CList<CConcept *>concepts_to_delete;
+	CList<int> ids_to_delete;
 	int id, num, assoc_id;
 
 	POSITION pos = concepts.GetStartPosition();
@@ -192,33 +195,44 @@ void CMind::CleanUpConcepts()
 			assoc_id = concept->associations.GetAt(i);
 			if (!associations.Lookup(assoc_id, assoc))
 			{
-				concept->associations.RemoveAt(i);
-				i--;
+				ids_to_delete.AddHead(i);
 			}
+		}
+
+		while (ids_to_delete.GetCount() > 0)
+		{
+			int index = ids_to_delete.GetHead();
+			concept->associations.RemoveAt(index);
+			ids_to_delete.RemoveHead();
 		}
 
 		if (concept->associations.GetCount() == 0)
 		{
-			delete_these.AddTail(concept);
+			++concept->forget_hold;
+			if (concept->forget_hold > FORGET_THRESHOLD)
+				concepts_to_delete.AddTail(concept);
+		}
+		else
+		{
+			concept->forget_hold = 0;
 		}
 	}
 
-	num = 0;
-	pos = delete_these.GetHeadPosition();
+	pos = concepts_to_delete.GetHeadPosition();
 	while (pos)
 	{
-		concept = delete_these.GetNext(pos);
+		concept = concepts_to_delete.GetNext(pos);
 		concepts.RemoveKey(concept->id);
 		delete concept;
-		num++;
 	}
 
-	if (num > 0)
+	if (concepts_to_delete.GetCount() > 0)
 	{
 		CleanUpAssociations();
 	}
 }
 
+// ----------------------------------------------------------------------------------------
 //int CMind::ProcessAudio(TCHAR *Word)
 //{
 //	CTTNode *res = NULL;
@@ -251,6 +265,7 @@ void CMind::CleanUpConcepts()
 //	return res->concept_id;
 //}
 
+// ----------------------------------------------------------------------------------------
 //CTTNode *CMind::SearchTextNodes(TCHAR Ch, CTTNode *Start)
 //{
 //	while (Start)
@@ -363,7 +378,6 @@ int CMind::PurgeConcept(int ID, LPCTSTR Name)
 	{
 		concept_names.RemoveKey(c->name);
 		concepts.RemoveKey(c->id);
-		CleanUpAssociations();
 		delete c;
 	}
 	return ID;

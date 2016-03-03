@@ -105,7 +105,26 @@ void CMind1Dlg::OnBnClickedOk()
 {
 	UpdateData(TRUE);
 
-	theMind.BuildAssociation(theInfo, 0);
+	if (theInfo[0] == '~')
+	{
+		theInfo = theInfo.Mid(1);
+		if ((theInfo[0] == 'A') || (theInfo[0] == 'a'))
+		{
+			theInfo = theInfo.Mid(1);
+			int id = _tstoi(theInfo);
+			theMind.PurgeAssociation(id);
+		}
+		else if ((theInfo[0] == 'C') || (theInfo[0] == 'c'))
+		{
+			theInfo = theInfo.Mid(1);
+			theMind.PurgeConcept(0, theInfo);
+		}
+	}
+	else
+	{
+		theMind.BuildAssociation(theInfo, 0);
+	}
+
 	theInfo.Empty();
 	Refresh();
 }

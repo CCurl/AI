@@ -4,6 +4,7 @@
 
 #define FN_CONCEPTS "Concepts.txt"
 #define FN_ASSOCS "Associations.txt"
+#define FORGET_THRESHOLD 5
 
 // Text tree node
 // When the concept_id != 0, we are at a concept
@@ -36,9 +37,10 @@ public:
 class CConcept
 {
 public:
-	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; }
+	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; forget_hold = 0; }
 	CConcept() { id = 0; }
 	int id;
+	int forget_hold;	// how many times it has been looked at with no associations
 	CArray<int> associations;
 	CString name;
 };
