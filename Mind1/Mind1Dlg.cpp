@@ -28,9 +28,9 @@ CMind1Dlg::CMind1Dlg(CWnd* pParent /*=NULL*/)
 void CMind1Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
-	DDX_Text(pDX, IDC_Info, theInfo);
-	DDX_Text(pDX, IDC_Output, output1);
-	DDX_Text(pDX, IDC_Output2, output2);
+	//DDX_Text(pDX, IDC_Info, theInfo);
+	//DDX_Text(pDX, IDC_Output, output1);
+	//DDX_Text(pDX, IDC_Output2, output2);
 	// DDX_Text(pDX, IDC_Thought, lastThought);
 }
 
@@ -103,20 +103,20 @@ HCURSOR CMind1Dlg::OnQueryDragIcon()
 
 void CMind1Dlg::OnBnClickedOk()
 {
-	UpdateData(TRUE);
+	GetDlgItem(IDC_Info)->GetWindowText(theInfo);
 
 	if (theInfo[0] == '~')
 	{
-		theInfo = theInfo.Mid(1);
-		if ((theInfo[0] == 'A') || (theInfo[0] == 'a'))
+		char ch = toupper((char)theInfo[1]);
+		if (ch == 'A')
 		{
-			theInfo = theInfo.Mid(1);
+			theInfo = theInfo.Mid(2);
 			int id = _tstoi(theInfo);
 			theMind.PurgeAssociation(id);
 		}
-		else if ((theInfo[0] == 'C') || (theInfo[0] == 'c'))
+		else if (ch == 'C')
 		{
-			theInfo = theInfo.Mid(1);
+			theInfo = theInfo.Mid(2);
 			theMind.PurgeConcept(0, theInfo);
 		}
 	}
@@ -126,6 +126,7 @@ void CMind1Dlg::OnBnClickedOk()
 	}
 
 	theInfo.Empty();
+	GetDlgItem(IDC_Info)->SetWindowText(theInfo);
 	Refresh();
 }
 
@@ -162,7 +163,9 @@ void CMind1Dlg::Refresh()
 	theMind.DumpAssociations(output2, NULL);
 	output1.Replace(_T("\n"), _T("\r\n"));
 	output2.Replace(_T("\n"), _T("\r\n"));
-	UpdateData(FALSE);
+
+	GetDlgItem(IDC_Output)->SetWindowText(output1);
+	GetDlgItem(IDC_Output2)->SetWindowText(output2);
 }
 
 void CMind1Dlg::OnBnClickedLoad()
