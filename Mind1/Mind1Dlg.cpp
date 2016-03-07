@@ -139,10 +139,15 @@ void CMind1Dlg::OnBnClickedCancel()
 
 void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 {
+	static CString last_thought;
 	KillTimer(ThinkTimerID);
 
 	bool refresh = theMind.Think(lastThought);
-	SetDlgItemText(IDC_Thought, lastThought);
+	if (last_thought.Compare(lastThought) != 0)
+	{
+		SetDlgItemText(IDC_Thought, lastThought);
+		last_thought = lastThought;
+	}
 
 	if (refresh)
 	{
