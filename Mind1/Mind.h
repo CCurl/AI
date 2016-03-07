@@ -2,78 +2,84 @@
 
 #include "StringUtils.h"
 
+#define FN_THEMIND "TheMind.txt"
 #define FN_CONCEPTS "Concepts.txt"
 #define FN_ASSOCS "Associations.txt"
 #define FORGET_THRESHOLD 5
 
-// Text tree node
-// When the concept_id != 0, we are at a concept
-//class CTTNode
-//{
-//public:
-//	CTTNode() { next = child = parent = NULL; concept_id = 0; }
-//	CTTNode(TCHAR Ch, int ConceptID) { next = child = NULL; ch = Ch;  concept_id = ConceptID; }
-//	~CTTNode();
-//
-//	CTTNode *next, *child, *parent;
-//	TCHAR ch;
-//	int concept_id;
-//};
+#define MEMORY_SIZE 1024*1024
 
 typedef enum {
-	unknown, is_a, has_a, synonym, antonym, modifier, plural, singular
-} ASSOC_TYPE;
+	MindRoot = 0, TextSystem, SomeThing, MemType_Unknown = 999
+} MEMNODE_TYPE;
 
-class CAssociation
+class CMind;
+
+// ----------------------------------------------------------------------------------------
+// CMemoryNode
+// ----------------------------------------------------------------------------------------
+class CMemoryNode
 {
 public:
-	CAssociation() { id = 0; type = unknown; }
-	~CAssociation();
-	int id;
-	ASSOC_TYPE type;
-	CList<int> concepts;
+	CMemoryNode() { type = MemType_Unknown; location = 0; trigger = 0; }
+	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; trigger = 0; }
+	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; trigger = 0; }
+
+	int AddInput(CMemoryNode *Other);
+	int AddOutput(CMemoryNode *Other);
+
+	CMemoryNode *FindInputOfType(MEMNODE_TYPE Type);
+
+	CMemoryNode *FindOutputTo(int Location);
+	CMemoryNode *FindOutputFor(int Trigger, MEMNODE_TYPE Type);
+	CMemoryNode *FindOutputOtherThan(MEMNODE_TYPE Type);
+
+	LPCTSTR ToString();
+
+	int location;
+	int trigger;
+	MEMNODE_TYPE type;
+
+	// This node's inputs and outputs
+	CArray<CMemoryNode *>inputs;
+	CArray<CMemoryNode *>outputs;
+
+	// Class statics ...
+	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
+	static void ConnectNodes(CMemoryNode *From, CMemoryNode *To);
+	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	static CMemoryNode *all_nodes[MEMORY_SIZE];
+	static int last_memory_location;
 };
 
-class CConcept
+
+class CTextSystem
 {
 public:
-	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; forget_hold = 0; }
-	CConcept() { id = 0; }
-	int id;
-	int forget_hold;	// how many times it has been looked at with no associations
-	CArray<int> associations;
-	CString name;
+	CTextSystem();
+	TCHAR *BuildOutput(CMemoryNode *PathEnd);
+	CMemoryNode *LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
+	CMemoryNode *RecognizeThis(LPCTSTR Input);
+
+	CMemoryNode *root;
+	CString last_received;
 };
 
+// ----------------------------------------------------------------------------------------
+// CMind
+// ----------------------------------------------------------------------------------------
 class CMind
 {
 public:
 	CMind();
 	~CMind();
 
-	CAssociation *BuildAssociation(CStrings& Words, int ID);
-	CAssociation *BuildAssociation(CString& Input, int ID);
-	void CleanUpAssociations();
-	void CleanUpConcepts();
-	void DumpConcepts(CString& Output, FILE *fp);
-	void DumpAssociations(CString& Output, FILE *fp);
-	CConcept *EnsureConcept(LPCTSTR name, int ID);
+	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
+	int Load(char *Filename);
+	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	int Save();
 	bool Think(CString& Output);
 
-	int Load();
-	int PurgeAssociation(int ID);
-	int PurgeConcept(int ConceptID, LPCTSTR Name);
-	int Save();
-
-	CMap<int, int, CConcept *, CConcept *> concepts;
-	CMap<int, int, CAssociation *, CAssociation *> associations;
-	CMapStringToPtr concept_names;
-
-	int last_concept_id;
-	int last_assoc_id;
-
-	// Future general pattern processing
-	// int ProcessAudio(int *Stream);
-	// CTTNode *SearchTextNodes(int val, CTTNode *Start);
-	// CTTNode *text_tree;
+	CMemoryNode *memory_root;
+	CTextSystem text_system;
 };

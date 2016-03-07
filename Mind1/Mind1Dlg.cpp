@@ -59,6 +59,7 @@ BOOL CMind1Dlg::OnInitDialog()
 	// TODO: Add extra initialization here
 	ThinkTimerID = 101;
 	ThinkDelay = 1000;
+	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 
@@ -112,17 +113,18 @@ void CMind1Dlg::OnBnClickedOk()
 		{
 			theInfo = theInfo.Mid(2);
 			int id = _tstoi(theInfo);
-			theMind.PurgeAssociation(id);
+			//theMind.PurgeAssociation(id);
 		}
 		else if (ch == 'C')
 		{
 			theInfo = theInfo.Mid(2);
-			theMind.PurgeConcept(0, theInfo);
+			//theMind.PurgeConcept(0, theInfo);
 		}
 	}
 	else
 	{
-		theMind.BuildAssociation(theInfo, 0);
+		theMind.text_system.LearnThis(theInfo);
+		//theMind.BuildAssociation(theInfo, 0);
 	}
 
 	theInfo.Empty();
@@ -150,6 +152,7 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	}
 
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	//SetTimer(ThinkTimerID, 5, NULL);
 }
 
 void CMind1Dlg::OnBnClickedSave()
@@ -159,17 +162,17 @@ void CMind1Dlg::OnBnClickedSave()
 
 void CMind1Dlg::Refresh()
 {
-	theMind.DumpConcepts(output1, NULL);
-	theMind.DumpAssociations(output2, NULL);
-	output1.Replace(_T("\n"), _T("\r\n"));
-	output2.Replace(_T("\n"), _T("\r\n"));
+	//theMind.DumpConcepts(output1, NULL);
+	//theMind.DumpAssociations(output2, NULL);
+	//output1.Replace(_T("\n"), _T("\r\n"));
+	//output2.Replace(_T("\n"), _T("\r\n"));
 
-	GetDlgItem(IDC_Output)->SetWindowText(output1);
-	GetDlgItem(IDC_Output2)->SetWindowText(output2);
+	//GetDlgItem(IDC_Output)->SetWindowText(output1);
+	//GetDlgItem(IDC_Output2)->SetWindowText(output2);
 }
 
 void CMind1Dlg::OnBnClickedLoad()
 {
-	theMind.Load();
+	theMind.Load(FN_CONCEPTS);
 	Refresh();
 }
