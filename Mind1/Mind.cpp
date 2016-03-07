@@ -146,7 +146,7 @@ LPCTSTR CMemoryNode::ToString()
 		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->trigger, link->to->location);
 	}
 
-	if (type == TextSystem)
+	if (type == TextNode)
 	{
 		ret.AppendFormat(_T(",%c"), char(value));
 	}
@@ -164,7 +164,15 @@ CMind::CMind()
 	}
 
 	memory_root = NodeAt(MindRoot, true, MindRoot);
+
+	concept_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
+	concept_system.mind = this;
+
+	executive_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
+	executive_system.mind = this;
+
 	text_system.root = NodeAt(TextSystem, true, TextSystem);
+	text_system.mind = this;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -177,19 +185,10 @@ CMind::~CMind()
 	}
 }
 
-// ----------------------------------------------------------------------------------------
-//void CMemoryNode::ConnectNodes(CMemoryNode *From, CMemoryNode *To)
-//{
-	//From->AddOutput(To);
-	// From->LinkTo(To, Type);
-	//To->AddInput(From);
-//}
-
-// ----------------------------------------------------------------------------------------
 int CMind::Load(char *Filename)
 {
 	// int tmp = 0;
-	// CStrings words;
+	CStrings words;
 	int num = 0, max_id = 0;
 	char buf[BUFSIZE];
 	FILE *fp = NULL;
@@ -203,11 +202,17 @@ int CMind::Load(char *Filename)
 		{
 			line = buf;
 			line.TrimRight();
-			// words.Split(line, ' ');
+			words.Split(line, ' ');
+			CString *w = words.GetFirst();
+			while (w)
+			{
+				text_system.LearnThis(*w);
+				w = words.GetNext();
+			}
 			// int id = words.GetIntAt(0);
 			// id = ++tmp;
 			// LPCTSTR name = words.GetAt(1);
-			CMemoryNode *theThing = text_system.LearnThis(line);
+			//CMemoryNode *theThing = text_system.LearnThis(line);
 			num++;
 		}
 		fclose(fp);
@@ -250,6 +255,9 @@ bool CMind::Think(CString& Output)
 {
 	static int cycle = 1;
 	static int last_ob = 1;
+
+	Output.Empty();
+	text_system.WakeUp();
 
 	++cycle;
 	if (cycle % 10 == 0)
@@ -298,12 +306,12 @@ TCHAR *CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 	TCHAR *cp = &buf[255];
 	*(--cp) = NULL;
 
-	if ((PathEnd) && (PathEnd->type != TextSystem))
+	if ((PathEnd) && (PathEnd->type != TextNode))
 	{
 		PathEnd = PathEnd->FindLink(LINK_TextOut);
 	}
 
-	while ((PathEnd) && (PathEnd != root))
+	while ((PathEnd) && (PathEnd->type == TextNode))
 	{
 		*(--cp) = TCHAR(PathEnd->value);
 		PathEnd = PathEnd->FindLink(LINK_TextOut);
@@ -331,9 +339,8 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 		CMemoryNode *to = cur->FindLink(ch, LINK_TextIn);
 		if (!to)
 		{
-			to = CMemoryNode::AllocateNode(TextSystem);
+			to = CMemoryNode::AllocateNode(TextNode);
 			to->value = ch;
-			//CMemoryNode::ConnectNodes(cur, to);
 			cur->LinkTo(to, ch, LINK_TextIn);
 			to->LinkTo(cur, cur->value, LINK_TextOut);
 		}
@@ -344,13 +351,12 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	if (Thing == NULL)
 	{
 		// No "Thing" was passed in, so create one ...
-		Thing = cur->FindLinkThan(TextSystem);
+		Thing = cur->FindLinkThan(TextNode);
 		if (Thing == NULL)
 		{
 			Thing = CMemoryNode::AllocateNode(SomeThing);
 			cur->LinkTo(Thing, 0, LINK_Concept);
 			Thing->LinkTo(cur, cur->value, LINK_TextOut);
-			//CMemoryNode::ConnectNodes(cur, Thing);
 		}
 	}
 	else
@@ -360,7 +366,6 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 		{
 			cur->LinkTo(Thing, 0, LINK_Concept);
 			Thing->LinkTo(cur, cur->value, LINK_TextOut);
-			//CMemoryNode::ConnectNodes(cur, Thing);
 		}
 	}
 
@@ -372,7 +377,7 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 // Returns the recognized thing, or NULL if not recognized.
 // NB: if more than one thing is associated with this text, only the first is returned.
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CTextSystem::RecognizeThis(LPCTSTR Input)
+CMemoryNode *CTextSystem::LookAt(LPCTSTR Input)
 {
 	CMemoryNode *cur = root;
 	last_received = Input;
@@ -383,6 +388,26 @@ CMemoryNode *CTextSystem::RecognizeThis(LPCTSTR Input)
 		cur = cur->FindLink(ch, LINK_TextIn);
 	}
 
-	return (cur != NULL) ? cur->FindLinkThan(TextSystem) : NULL;
+	return (cur != NULL) ? cur->FindLinkThan(TextNode) : NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+// Searches the pathways for the input.
+// Returns the recognized thing, or NULL if not recognized.
+// NB: if more than one thing is associated with this text, only the first is returned.
+// ----------------------------------------------------------------------------------------
+void CTextSystem::WakeUp()
+{
+	if (input_queue.GetCount() > 0)
+	{
+		CString input = input_queue.RemoveHead();
+		LookAt(input);
+	}
+
+	if (fire_queue.GetCount() > 0)
+	{
+		CMemoryNode *node = fire_queue.RemoveHead();
+		FireNode(node);
+	}
 }
 

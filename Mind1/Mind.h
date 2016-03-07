@@ -10,7 +10,13 @@
 #define MEMORY_SIZE 1024*1024
 
 typedef enum {
-	MindRoot = 0, TextSystem, SomeThing, MemType_Unknown = 999
+	MindRoot = 0, 
+	// Systems first
+	TextSystem, ConceptSystem, ExecutiveSystem, 
+
+	TextNode, ConceptNode, ExecutiveNode,
+	SomeThing, 
+	MemType_Unknown = 999
 } MEMNODE_TYPE;
 
 typedef enum {
@@ -19,6 +25,9 @@ typedef enum {
 
 class CMind;
 class CMemoryNode;
+class CConceptSystem;
+class CExecutiveSystem;
+class CTextSystem;
 
 // ----------------------------------------------------------------------------------------
 // CNodeLink
@@ -44,8 +53,6 @@ public:
 	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; value = 0; }
 	~CMemoryNode();
 
-	// int AddInput(CMemoryNode *Other);
-	// int AddOutput(CMemoryNode *Other);
 	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
 
 	CMemoryNode *FindInputOfType(MEMNODE_TYPE Type);
@@ -63,18 +70,39 @@ public:
 	MEMNODE_TYPE type;
 
 	// This node's inputs and outputs
-	//CArray<CMemoryNode *>inputs;
-	//CArray<CMemoryNode *>outputs;
 	CList<CNodeLink *> links;
 
 	// Class statics ...
 	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	//static void ConnectNodes(CMemoryNode *From, CMemoryNode *To);
 	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
 	static CMemoryNode *all_nodes[MEMORY_SIZE];
 	static int last_memory_location;
 };
 
+
+// ----------------------------------------------------------------------------------------
+// CConceptSystem
+// ----------------------------------------------------------------------------------------
+class CConceptSystem
+{
+public:
+	CConceptSystem() {}
+
+	CMind *mind;
+	CMemoryNode *root;
+};
+
+// ----------------------------------------------------------------------------------------
+// CExecutiveSystem
+// ----------------------------------------------------------------------------------------
+class CExecutiveSystem
+{
+public:
+	CExecutiveSystem() {}
+
+	CMind *mind;
+	CMemoryNode *root;
+};
 
 // ----------------------------------------------------------------------------------------
 // CTextSystem
@@ -84,10 +112,19 @@ class CTextSystem
 public:
 	CTextSystem();
 	TCHAR *BuildOutput(CMemoryNode *PathEnd);
+	
+	void FireNode(CMemoryNode *Node) { fire_queue.AddTail(Node); }
 	CMemoryNode *LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
-	CMemoryNode *RecognizeThis(LPCTSTR Input);
+	CMemoryNode *LookAt(LPCTSTR Input);
+	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
+	void WakeUp();
 
+	CMind *mind;
 	CMemoryNode *root;
+
+	CList<CMemoryNode *> fire_queue;
+	CList<CString> input_queue;
+
 	CString last_received;
 };
 
@@ -107,5 +144,7 @@ public:
 	bool Think(CString& Output);
 
 	CMemoryNode *memory_root;
+	CConceptSystem concept_system;
+	CExecutiveSystem executive_system;
 	CTextSystem text_system;
 };
