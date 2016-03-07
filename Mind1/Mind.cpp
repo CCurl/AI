@@ -9,17 +9,28 @@ int CMemoryNode::last_memory_location = 0;
 // ----------------------------------------------------------------------------------------
 // CMemoryNode
 // ----------------------------------------------------------------------------------------
-int CMemoryNode::AddInput(CMemoryNode *Input)
-{ 
-	inputs.Add(Input);
-	return inputs.GetSize(); 
-}
+//int CMemoryNode::AddInput(CMemoryNode *Input)
+//{ 
+//	inputs.Add(Input);
+//	return inputs.GetSize(); 
+//}
 
 // ----------------------------------------------------------------------------------------
-int CMemoryNode::AddOutput(CMemoryNode *Output)
+//int CMemoryNode::AddOutput(CMemoryNode *Output)
+//{
+//	outputs.Add(Output);
+//	return outputs.GetSize();
+//}
+
+// ----------------------------------------------------------------------------------------
+CMemoryNode::~CMemoryNode()
 {
-	outputs.Add(Output);
-	return outputs.GetSize();
+	while (links.GetCount())
+	{
+		CNodeLink *link = links.GetHead();
+		delete link;
+		links.RemoveHead();
+	}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -41,47 +52,70 @@ CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindInputOfType(MEMNODE_TYPE Type)
+CMemoryNode *CMemoryNode::FindLink(int Trigger, NODELINK_TYPE Type)
 {
-	for (int i = 0; i < inputs.GetSize(); i++)
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
 	{
-		if (inputs[i]->type == Type)
-			return inputs[i];
+		CNodeLink *link = links.GetNext(pos);
+		if ((link->trigger == Trigger) && (link->type == Type))
+		{
+			return link->to;
+		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindOutputFor(int Trigger, MEMNODE_TYPE Type)
+CMemoryNode *CMemoryNode::FindLink(NODELINK_TYPE Type)
 {
-	for (int i = 0; i < outputs.GetSize(); i++)
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
 	{
-		if ((outputs[i]->trigger == Trigger) && (outputs[i]->type == Type))
-			return outputs[i];
+		CNodeLink *link = links.GetNext(pos);
+		if (link->type == Type)
+		{
+			return link->to;
+		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindOutputOtherThan(MEMNODE_TYPE Type)
+CMemoryNode *CMemoryNode::FindLinkThan(MEMNODE_TYPE Type)
 {
-	for (int i = 0; i < outputs.GetSize(); i++)
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
 	{
-		if (outputs[i]->type != Type)
-			return outputs[i];
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->type != Type)
+		{
+			return link->to;
+		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindOutputTo(int Location)
+CMemoryNode *CMemoryNode::FindLinkTo(int Location)
 {
-	for (int i = 0; i < outputs.GetSize(); i++)
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
 	{
-		if (outputs[i]->location == Location)
-			return outputs[i];
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->location != Location)
+		{
+			return link->to;
+		}
 	}
 	return NULL;
+}
+
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type)
+{
+	links.AddTail(new CNodeLink(To, Trigger, Type));
 }
 
 // ----------------------------------------------------------------------------------------
@@ -103,17 +137,18 @@ CMemoryNode *CMemoryNode::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
 LPCTSTR CMemoryNode::ToString()
 {
 	static CString ret;
-	ret.Format(_T("%d,%d,%d,%d"), location, type, trigger, outputs.GetCount());
-	for (int i = 0; i < outputs.GetCount(); i++)
+	ret.Format(_T("%d,%d,%d,%d"), location, type, value, links.GetCount());
+
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
 	{
-		if (outputs[i])
-			ret.AppendFormat(_T(",%d"), outputs[i]->location);
-		else
-			ret.Append(_T(",0"));
+		CNodeLink *link = links.GetNext(pos);
+		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->trigger, link->to->location);
 	}
+
 	if (type == TextSystem)
 	{
-		ret.AppendFormat(_T(",%c"), char(trigger));
+		ret.AppendFormat(_T(",%c"), char(value));
 	}
 	return ret;
 }
@@ -143,11 +178,12 @@ CMind::~CMind()
 }
 
 // ----------------------------------------------------------------------------------------
-void CMemoryNode::ConnectNodes(CMemoryNode *From, CMemoryNode *To)
-{
-	From->AddOutput(To);
-	To->AddInput(From);
-}
+//void CMemoryNode::ConnectNodes(CMemoryNode *From, CMemoryNode *To)
+//{
+	//From->AddOutput(To);
+	// From->LinkTo(To, Type);
+	//To->AddInput(From);
+//}
 
 // ----------------------------------------------------------------------------------------
 int CMind::Load(char *Filename)
@@ -264,14 +300,13 @@ TCHAR *CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 
 	if ((PathEnd) && (PathEnd->type != TextSystem))
 	{
-		PathEnd = PathEnd->FindInputOfType(TextSystem);
+		PathEnd = PathEnd->FindLink(LINK_TextOut);
 	}
 
-	while ((PathEnd) && (PathEnd->type == TextSystem) && (PathEnd != root))
+	while ((PathEnd) && (PathEnd != root))
 	{
-		CMemoryNode *prev = PathEnd->FindInputOfType(TextSystem);
-		*(--cp) = TCHAR(PathEnd->trigger);
-		PathEnd = prev;
+		*(--cp) = TCHAR(PathEnd->value);
+		PathEnd = PathEnd->FindLink(LINK_TextOut);
 	}
 	
 	return cp;
@@ -293,12 +328,14 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	while (*Input)
 	{
 		int ch = *(Input++);
-		CMemoryNode *to = cur->FindOutputFor(ch, TextSystem);
+		CMemoryNode *to = cur->FindLink(ch, LINK_TextIn);
 		if (!to)
 		{
 			to = CMemoryNode::AllocateNode(TextSystem);
-			to->trigger = ch;
-			CMemoryNode::ConnectNodes(cur, to);
+			to->value = ch;
+			//CMemoryNode::ConnectNodes(cur, to);
+			cur->LinkTo(to, ch, LINK_TextIn);
+			to->LinkTo(cur, cur->value, LINK_TextOut);
 		}
 		cur = to;
 	}
@@ -307,19 +344,23 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	if (Thing == NULL)
 	{
 		// No "Thing" was passed in, so create one ...
-		Thing = cur->FindOutputOtherThan(TextSystem);
+		Thing = cur->FindLinkThan(TextSystem);
 		if (Thing == NULL)
 		{
 			Thing = CMemoryNode::AllocateNode(SomeThing);
-			CMemoryNode::ConnectNodes(cur, Thing);
+			cur->LinkTo(Thing, 0, LINK_Concept);
+			Thing->LinkTo(cur, cur->value, LINK_TextOut);
+			//CMemoryNode::ConnectNodes(cur, Thing);
 		}
 	}
 	else
 	{
 		// See if we already know about it ...
-		if (cur->FindOutputTo(Thing->location) == NULL)
+		if (cur->FindLinkTo(Thing->location) == NULL)
 		{
-			CMemoryNode::ConnectNodes(cur, Thing);
+			cur->LinkTo(Thing, 0, LINK_Concept);
+			Thing->LinkTo(cur, cur->value, LINK_TextOut);
+			//CMemoryNode::ConnectNodes(cur, Thing);
 		}
 	}
 
@@ -339,9 +380,9 @@ CMemoryNode *CTextSystem::RecognizeThis(LPCTSTR Input)
 	while ((cur) && (*Input))
 	{
 		int ch = *(Input++);
-		cur = cur->FindOutputFor(ch, TextSystem);
+		cur = cur->FindLink(ch, LINK_TextIn);
 	}
 
-	return (cur != NULL) ? cur->FindOutputOtherThan(TextSystem) : NULL;
+	return (cur != NULL) ? cur->FindLinkThan(TextSystem) : NULL;
 }
 

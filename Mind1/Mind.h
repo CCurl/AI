@@ -13,7 +13,25 @@ typedef enum {
 	MindRoot = 0, TextSystem, SomeThing, MemType_Unknown = 999
 } MEMNODE_TYPE;
 
+typedef enum {
+	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept,
+} NODELINK_TYPE;
+
 class CMind;
+class CMemoryNode;
+
+// ----------------------------------------------------------------------------------------
+// CNodeLink
+// ----------------------------------------------------------------------------------------
+class CNodeLink
+{
+public:
+	CNodeLink() { to = NULL; trigger = 0; type = LINK_Unknown; }
+	CNodeLink(CMemoryNode *To, int Trigger, NODELINK_TYPE Type) { to = To; trigger = Trigger; type = Type; }
+	CMemoryNode *to;
+	int trigger;
+	NODELINK_TYPE type;
+};
 
 // ----------------------------------------------------------------------------------------
 // CMemoryNode
@@ -21,38 +39,46 @@ class CMind;
 class CMemoryNode
 {
 public:
-	CMemoryNode() { type = MemType_Unknown; location = 0; trigger = 0; }
-	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; trigger = 0; }
-	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; trigger = 0; }
+	CMemoryNode() { type = MemType_Unknown; location = 0; value = 0; }
+	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; value = 0; }
+	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; value = 0; }
+	~CMemoryNode();
 
-	int AddInput(CMemoryNode *Other);
-	int AddOutput(CMemoryNode *Other);
+	// int AddInput(CMemoryNode *Other);
+	// int AddOutput(CMemoryNode *Other);
+	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
 
 	CMemoryNode *FindInputOfType(MEMNODE_TYPE Type);
 
-	CMemoryNode *FindOutputTo(int Location);
-	CMemoryNode *FindOutputFor(int Trigger, MEMNODE_TYPE Type);
-	CMemoryNode *FindOutputOtherThan(MEMNODE_TYPE Type);
+	CMemoryNode *FindLinkTo(int Location);
+	CMemoryNode *FindLink(NODELINK_TYPE Type);
+	CMemoryNode *FindLink(int Trigger, NODELINK_TYPE Type);
+	CMemoryNode *FindLinkThan(MEMNODE_TYPE Type);
+	bool HasLinkTo(CMemoryNode *To);
 
 	LPCTSTR ToString();
 
 	int location;
-	int trigger;
+	int value;
 	MEMNODE_TYPE type;
 
 	// This node's inputs and outputs
-	CArray<CMemoryNode *>inputs;
-	CArray<CMemoryNode *>outputs;
+	//CArray<CMemoryNode *>inputs;
+	//CArray<CMemoryNode *>outputs;
+	CList<CNodeLink *> links;
 
 	// Class statics ...
 	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	static void ConnectNodes(CMemoryNode *From, CMemoryNode *To);
+	//static void ConnectNodes(CMemoryNode *From, CMemoryNode *To);
 	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
 	static CMemoryNode *all_nodes[MEMORY_SIZE];
 	static int last_memory_location;
 };
 
 
+// ----------------------------------------------------------------------------------------
+// CTextSystem
+// ----------------------------------------------------------------------------------------
 class CTextSystem
 {
 public:
