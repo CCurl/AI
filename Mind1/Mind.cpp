@@ -52,13 +52,13 @@ CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
 }
 
 // ----------------------------------------------------------------------------------------
-CNodeLink *CMemoryNode::FindLink(int Trigger, NODELINK_TYPE Type)
+CNodeLink *CMemoryNode::FindLink(int Threshold, NODELINK_TYPE Type)
 {
 	POSITION pos = links.GetHeadPosition();
 	while (pos)
 	{
 		CNodeLink *link = links.GetNext(pos);
-		if ((link->trigger == Trigger) && (link->type == Type))
+		if ((link->threshold == Threshold) && (link->type == Type))
 		{
 			return link;
 		}
@@ -112,6 +112,20 @@ CNodeLink *CMemoryNode::FindLinkTo(int Location)
 }
 
 // ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if ((link->type == Type) && (link->threshold == Threshold))
+		{
+			Mind->Fire(link);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------------------
 void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
 {
 	POSITION pos = links.GetHeadPosition();
@@ -126,9 +140,9 @@ void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
 }
 
 // ----------------------------------------------------------------------------------------
-void CMemoryNode::LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type)
+void CMemoryNode::LinkTo(CMemoryNode *To, int Threshold, NODELINK_TYPE Type)
 {
-	links.AddTail(new CNodeLink(To, Trigger, Type));
+	links.AddTail(new CNodeLink(To, Threshold, Type));
 }
 
 // ----------------------------------------------------------------------------------------
@@ -156,7 +170,7 @@ LPCTSTR CMemoryNode::ToString()
 	while (pos)
 	{
 		CNodeLink *link = links.GetNext(pos);
-		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->trigger, link->to->location);
+		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->to->location);
 	}
 
 	if (type == TextNode)
@@ -301,6 +315,28 @@ bool CMind::Think(CString& Output)
 }
 
 // ----------------------------------------------------------------------------------------
+// This is where the rubber meets the road.
+// ----------------------------------------------------------------------------------------
+void CConceptSystem::Fire(CNodeLink *Link)
+{
+	CMemoryNode *node = Link->to;
+
+	// Testing ...
+	//mind->Fire(node->FindLink(LINK_TextOut));
+
+	node = mind->NodeAt(node->location - 1);
+	while (node)
+	{
+		if (node->type == ConceptNode)
+		{
+			mind->Fire(node->FindLink(LINK_TextOut));
+			break;
+		}
+		node = mind->NodeAt(node->location - 1);
+	}
+}
+
+// ----------------------------------------------------------------------------------------
 // CTextSystem
 // ----------------------------------------------------------------------------------------
 CTextSystem::CTextSystem()
@@ -343,24 +379,25 @@ void CTextSystem::Fire(CNodeLink *Link)
 		{
 			node->FireLinksNotToType(TextNode, mind);
 			// vvvvv --- for testing --- vvvvv
-			Link = node->FindLinkOtherThan(TextNode);
-			if (Link)
-			{
-				Link = Link->to->FindLink(LINK_TextOut);
-				if (Link)
-				{
-					mind->Fire(Link);
-				}
-			}
+			//Link = node->FindLinkOtherThan(TextNode);
+			//if (Link)
+			//{
+			//	Link = Link->to->FindLink(LINK_TextOut);
+			//	if (Link)
+			//	{
+			//		mind->Fire(Link);
+			//	}
+			//}
 			// ^^^^^ --- for testing --- ^^^^^
 		}
 		else
 		{
-			Link = node->FindLink(ch, LINK_TextIn);
-			if (Link)
-			{
-				mind->Fire(Link);
-			}
+			node->FireLinksEqualTo(LINK_TextIn, ch, mind);
+			//Link = node->FindLink(ch, LINK_TextIn);
+			//if (Link)
+			//{
+			//	mind->Fire(Link);
+			//}
 		}
 		return;
 	}
@@ -369,7 +406,8 @@ void CTextSystem::Fire(CNodeLink *Link)
 	{
 		if (node->type == TextSystem)
 		{
-			last_output = output.MakeReverse();
+			// At the top ...
+			last_output.Append(output.MakeReverse());
 			output.Empty();
 		}
 		else if (node->type == TextNode)
@@ -420,7 +458,7 @@ void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 		Thing = link ? link->to : NULL;
 		if (Thing == NULL)
 		{
-			Thing = CMemoryNode::AllocateNode(SomeThing);
+			Thing = CMemoryNode::AllocateNode(ConceptNode);
 			cur->LinkTo(Thing, 0, LINK_Concept);
 			Thing->LinkTo(cur, cur->value, LINK_TextOut);
 		}

@@ -15,7 +15,6 @@ typedef enum {
 	TextSystem, ConceptSystem, ExecutiveSystem, 
 
 	TextNode, ConceptNode, ExecutiveNode,
-	SomeThing, 
 	MemType_Unknown = 999
 } MEMNODE_TYPE;
 
@@ -35,10 +34,10 @@ class CTextSystem;
 class CNodeLink
 {
 public:
-	CNodeLink() { to = NULL; trigger = 0; type = LINK_Unknown; }
-	CNodeLink(CMemoryNode *To, int Trigger, NODELINK_TYPE Type) { to = To; trigger = Trigger; type = Type; }
+	CNodeLink() { to = NULL; threshold = 0; type = LINK_Unknown; }
+	CNodeLink(CMemoryNode *To, int Threshold, NODELINK_TYPE Type) { to = To; threshold = Threshold; type = Type; }
 	CMemoryNode *to;
-	int trigger;
+	int threshold;
 	NODELINK_TYPE type;
 };
 
@@ -57,12 +56,17 @@ public:
 
 	CNodeLink *FindLinkTo(int Location);
 	CNodeLink *FindLink(NODELINK_TYPE Type);
-	CNodeLink *FindLink(int Trigger, NODELINK_TYPE Type);
+	CNodeLink *FindLink(int Threshold, NODELINK_TYPE Type);
 	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
 
+	void FireLinksToType(MEMNODE_TYPE Type, CMind *Mind) {}
 	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
+	void FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind);
+	void FireLinksNotEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+	void FireLinksGreaterThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+	void FireLinksLessThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
 
-	bool HasLinkTo(CMemoryNode *To);
+	bool HasLinkTo(CMemoryNode *To) { return false; }
 
 	LPCTSTR ToString();
 
@@ -70,7 +74,7 @@ public:
 	int value;
 	MEMNODE_TYPE type;
 
-	// This node's inputs and outputs
+	// This node's links
 	CList<CNodeLink *> links;
 
 	// Class statics ...
@@ -88,7 +92,7 @@ class CConceptSystem
 {
 public:
 	CConceptSystem() {}
-	void Fire(CNodeLink *Link) {}
+	void Fire(CNodeLink *Link);
 
 	CMind *mind;
 	CMemoryNode *root;
@@ -144,7 +148,7 @@ public:
 	~CMind();
 
 	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	void Fire(CNodeLink *Link) { fire_queue.AddTail(Link); }
+	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
 	int Load(char *Filename);
 	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
 	int Save();
