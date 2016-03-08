@@ -55,12 +55,13 @@ public:
 
 	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
 
-	CMemoryNode *FindInputOfType(MEMNODE_TYPE Type);
+	CNodeLink *FindLinkTo(int Location);
+	CNodeLink *FindLink(NODELINK_TYPE Type);
+	CNodeLink *FindLink(int Trigger, NODELINK_TYPE Type);
+	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
 
-	CMemoryNode *FindLinkTo(int Location);
-	CMemoryNode *FindLink(NODELINK_TYPE Type);
-	CMemoryNode *FindLink(int Trigger, NODELINK_TYPE Type);
-	CMemoryNode *FindLinkThan(MEMNODE_TYPE Type);
+	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
+
 	bool HasLinkTo(CMemoryNode *To);
 
 	LPCTSTR ToString();
@@ -87,6 +88,7 @@ class CConceptSystem
 {
 public:
 	CConceptSystem() {}
+	void Fire(CNodeLink *Link) {}
 
 	CMind *mind;
 	CMemoryNode *root;
@@ -99,6 +101,7 @@ class CExecutiveSystem
 {
 public:
 	CExecutiveSystem() {}
+	void Fire(CNodeLink *Link) {}
 
 	CMind *mind;
 	CMemoryNode *root;
@@ -111,21 +114,24 @@ class CTextSystem
 {
 public:
 	CTextSystem();
-	TCHAR *BuildOutput(CMemoryNode *PathEnd);
+	LPCTSTR BuildOutput(CMemoryNode *PathEnd);
 	
-	void FireNode(CMemoryNode *Node) { fire_queue.AddTail(Node); }
-	CMemoryNode *LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
-	CMemoryNode *LookAt(LPCTSTR Input);
+	void Fire(CNodeLink *Link);
+	void LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
+	void LookAt(LPCTSTR Input);
+	TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
 	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
 	void WakeUp();
 
 	CMind *mind;
 	CMemoryNode *root;
 
-	CList<CMemoryNode *> fire_queue;
 	CList<CString> input_queue;
 
 	CString last_received;
+	CString output;
+	CString last_output;
+	int cur_offset;
 };
 
 // ----------------------------------------------------------------------------------------
@@ -138,6 +144,7 @@ public:
 	~CMind();
 
 	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
+	void Fire(CNodeLink *Link) { fire_queue.AddTail(Link); }
 	int Load(char *Filename);
 	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
 	int Save();
@@ -147,4 +154,6 @@ public:
 	CConceptSystem concept_system;
 	CExecutiveSystem executive_system;
 	CTextSystem text_system;
+
+	CList<CNodeLink *> fire_queue;
 };

@@ -52,7 +52,7 @@ CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindLink(int Trigger, NODELINK_TYPE Type)
+CNodeLink *CMemoryNode::FindLink(int Trigger, NODELINK_TYPE Type)
 {
 	POSITION pos = links.GetHeadPosition();
 	while (pos)
@@ -60,14 +60,14 @@ CMemoryNode *CMemoryNode::FindLink(int Trigger, NODELINK_TYPE Type)
 		CNodeLink *link = links.GetNext(pos);
 		if ((link->trigger == Trigger) && (link->type == Type))
 		{
-			return link->to;
+			return link;
 		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindLink(NODELINK_TYPE Type)
+CNodeLink *CMemoryNode::FindLink(NODELINK_TYPE Type)
 {
 	POSITION pos = links.GetHeadPosition();
 	while (pos)
@@ -75,14 +75,14 @@ CMemoryNode *CMemoryNode::FindLink(NODELINK_TYPE Type)
 		CNodeLink *link = links.GetNext(pos);
 		if (link->type == Type)
 		{
-			return link->to;
+			return link;
 		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindLinkThan(MEMNODE_TYPE Type)
+CNodeLink *CMemoryNode::FindLinkOtherThan(MEMNODE_TYPE Type)
 {
 	POSITION pos = links.GetHeadPosition();
 	while (pos)
@@ -90,14 +90,14 @@ CMemoryNode *CMemoryNode::FindLinkThan(MEMNODE_TYPE Type)
 		CNodeLink *link = links.GetNext(pos);
 		if (link->to->type != Type)
 		{
-			return link->to;
+			return link;
 		}
 	}
 	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::FindLinkTo(int Location)
+CNodeLink *CMemoryNode::FindLinkTo(int Location)
 {
 	POSITION pos = links.GetHeadPosition();
 	while (pos)
@@ -105,12 +105,25 @@ CMemoryNode *CMemoryNode::FindLinkTo(int Location)
 		CNodeLink *link = links.GetNext(pos);
 		if (link->to->location != Location)
 		{
-			return link->to;
+			return link;
 		}
 	}
 	return NULL;
 }
 
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->type != Type)
+		{
+			Mind->Fire(link);
+		}
+	}
+}
 
 // ----------------------------------------------------------------------------------------
 void CMemoryNode::LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type)
@@ -256,34 +269,32 @@ bool CMind::Think(CString& Output)
 	static int cycle = 1;
 	static int last_ob = 1;
 
-	Output.Empty();
+	//Output.Empty();
 	text_system.WakeUp();
 
-	++cycle;
-	if (cycle % 10 == 0)
+	while (fire_queue.GetCount() > 0)
 	{
-		Output.Format(_T("cleanup ..."), ++cycle);
-		return true;
-	}
-	int i = last_ob + 1;
-	while (true)
-	{
-		CMemoryNode *cur = NodeAt(i);
-		if (!cur)
+		CNodeLink *link = fire_queue.RemoveHead();
+		switch (link->type)
 		{
-			Output.Format(_T("(end)"));
-			last_ob = 1;
-			return false;
-		}
+		case LINK_TextIn:
+		case LINK_TextOut:
+			text_system.Fire(link);
+			break;
 
-		if (cur->type == SomeThing)
-		{
-			last_ob = i;
-			Output = text_system.BuildOutput(cur);
-			Output.AppendFormat(_T(" (%s)"), cur->ToString());
-			return false;
+		case LINK_Concept:
+			concept_system.Fire(link);
+			break;
+
+		default:
+			break;
 		}
-		i++;
+	}
+
+	if (!text_system.last_output.IsEmpty())
+	{
+		Output = text_system.last_output;
+		text_system.last_output.Empty();
 	}
 
 	return false;
@@ -300,24 +311,77 @@ CTextSystem::CTextSystem()
 // ----------------------------------------------------------------------------------------
 // Builds a text string by walking backwards through the pathway.
 // ----------------------------------------------------------------------------------------
-TCHAR *CTextSystem::BuildOutput(CMemoryNode *PathEnd)
+LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 {
-	static TCHAR buf[256];
-	TCHAR *cp = &buf[255];
-	*(--cp) = NULL;
-
+	output.Empty();
 	if ((PathEnd) && (PathEnd->type != TextNode))
 	{
-		PathEnd = PathEnd->FindLink(LINK_TextOut);
+		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
+		PathEnd = link ? link->to : NULL;
 	}
 
 	while ((PathEnd) && (PathEnd->type == TextNode))
 	{
-		*(--cp) = TCHAR(PathEnd->value);
-		PathEnd = PathEnd->FindLink(LINK_TextOut);
+		output.AppendChar(TCHAR(PathEnd->value));
+		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
+		PathEnd = link ? link->to : NULL;
 	}
-	
-	return cp;
+	output.MakeReverse();
+	return output;
+}
+
+// ----------------------------------------------------------------------------------------
+// This is where the rubber meets the road.
+// ----------------------------------------------------------------------------------------
+void CTextSystem::Fire(CNodeLink *Link)
+{
+	CMemoryNode *node = Link->to;
+	if (Link->type == LINK_TextIn)
+	{
+		TCHAR ch = NextChar();
+		if (ch == NULL)
+		{
+			node->FireLinksNotToType(TextNode, mind);
+			// vvvvv --- for testing --- vvvvv
+			Link = node->FindLinkOtherThan(TextNode);
+			if (Link)
+			{
+				Link = Link->to->FindLink(LINK_TextOut);
+				if (Link)
+				{
+					mind->Fire(Link);
+				}
+			}
+			// ^^^^^ --- for testing --- ^^^^^
+		}
+		else
+		{
+			Link = node->FindLink(ch, LINK_TextIn);
+			if (Link)
+			{
+				mind->Fire(Link);
+			}
+		}
+		return;
+	}
+
+	if (Link->type == LINK_TextOut)
+	{
+		if (node->type == TextSystem)
+		{
+			last_output = output.MakeReverse();
+			output.Empty();
+		}
+		else if (node->type == TextNode)
+		{
+			output.AppendChar(TCHAR(node->value));
+			Link = node->FindLink(LINK_TextOut);
+			if (Link)
+			{
+				mind->Fire(Link);
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -325,10 +389,10 @@ TCHAR *CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 // Returns the last node in the pathway.
 // This can be used as a backpointer to the pathway for output.
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
+void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 {
 	if (*Input == NULL)
-		return NULL;
+		return;
 
 	CMemoryNode *cur = root;
 	last_received = Input;
@@ -336,7 +400,8 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	while (*Input)
 	{
 		int ch = *(Input++);
-		CMemoryNode *to = cur->FindLink(ch, LINK_TextIn);
+		CNodeLink *link = cur->FindLink(ch, LINK_TextIn);
+		CMemoryNode *to = link ? link->to : NULL;
 		if (!to)
 		{
 			to = CMemoryNode::AllocateNode(TextNode);
@@ -351,7 +416,8 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	if (Thing == NULL)
 	{
 		// No "Thing" was passed in, so create one ...
-		Thing = cur->FindLinkThan(TextNode);
+		CNodeLink *link = cur->FindLinkOtherThan(TextNode);
+		Thing = link ? link->to : NULL;
 		if (Thing == NULL)
 		{
 			Thing = CMemoryNode::AllocateNode(SomeThing);
@@ -368,33 +434,28 @@ CMemoryNode *CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 			Thing->LinkTo(cur, cur->value, LINK_TextOut);
 		}
 	}
-
-	return cur;
 }
 
+
 // ----------------------------------------------------------------------------------------
-// Searches the pathways for the input.
-// Returns the recognized thing, or NULL if not recognized.
-// NB: if more than one thing is associated with this text, only the first is returned.
+// Handles input provided.
+// If recognized, fires the output nodes.
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CTextSystem::LookAt(LPCTSTR Input)
+void CTextSystem::LookAt(LPCTSTR Input)
 {
-	CMemoryNode *cur = root;
 	last_received = Input;
+	cur_offset = 0;
+	TCHAR ch = NextChar();
 
-	while ((cur) && (*Input))
+	CNodeLink *link = root->FindLink(ch, LINK_TextIn);
+	if (link)
 	{
-		int ch = *(Input++);
-		cur = cur->FindLink(ch, LINK_TextIn);
+		mind->Fire(link);
 	}
-
-	return (cur != NULL) ? cur->FindLinkThan(TextNode) : NULL;
 }
 
 // ----------------------------------------------------------------------------------------
-// Searches the pathways for the input.
-// Returns the recognized thing, or NULL if not recognized.
-// NB: if more than one thing is associated with this text, only the first is returned.
+// Checks to see if there are any requests or input to process.
 // ----------------------------------------------------------------------------------------
 void CTextSystem::WakeUp()
 {
@@ -403,11 +464,4 @@ void CTextSystem::WakeUp()
 		CString input = input_queue.RemoveHead();
 		LookAt(input);
 	}
-
-	if (fire_queue.GetCount() > 0)
-	{
-		CMemoryNode *node = fire_queue.RemoveHead();
-		FireNode(node);
-	}
 }
-
