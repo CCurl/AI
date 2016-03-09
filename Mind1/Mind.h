@@ -2,78 +2,162 @@
 
 #include "StringUtils.h"
 
+#define FN_THEMIND "TheMind.txt"
 #define FN_CONCEPTS "Concepts.txt"
 #define FN_ASSOCS "Associations.txt"
 #define FORGET_THRESHOLD 5
 
-// Text tree node
-// When the concept_id != 0, we are at a concept
-//class CTTNode
-//{
-//public:
-//	CTTNode() { next = child = parent = NULL; concept_id = 0; }
-//	CTTNode(TCHAR Ch, int ConceptID) { next = child = NULL; ch = Ch;  concept_id = ConceptID; }
-//	~CTTNode();
-//
-//	CTTNode *next, *child, *parent;
-//	TCHAR ch;
-//	int concept_id;
-//};
+#define MEMORY_SIZE 1024*1024
 
 typedef enum {
-	unknown, is_a, has_a, synonym, antonym, modifier, plural, singular
-} ASSOC_TYPE;
+	MindRoot = 0, 
+	// Systems first
+	TextSystem, ConceptSystem, ExecutiveSystem, 
 
-class CAssociation
+	TextNode, ConceptNode, ExecutiveNode,
+	MemType_Unknown = 999
+} MEMNODE_TYPE;
+
+typedef enum {
+	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept, LINK_Wakeup
+} NODELINK_TYPE;
+
+class CMind;
+class CMemoryNode;
+class CConceptSystem;
+class CExecutiveSystem;
+class CTextSystem;
+
+// ----------------------------------------------------------------------------------------
+// CNodeLink
+// ----------------------------------------------------------------------------------------
+class CNodeLink
 {
 public:
-	CAssociation() { id = 0; type = unknown; }
-	~CAssociation();
-	int id;
-	ASSOC_TYPE type;
-	CList<int> concepts;
+	CNodeLink() { to = NULL; threshold = 0; type = LINK_Unknown; }
+	CNodeLink(CMemoryNode *To, int Threshold, NODELINK_TYPE Type) { to = To; threshold = Threshold; type = Type; }
+	CMemoryNode *to;
+	int threshold;
+	NODELINK_TYPE type;
 };
 
-class CConcept
+// ----------------------------------------------------------------------------------------
+// CMemoryNode
+// ----------------------------------------------------------------------------------------
+class CMemoryNode
 {
 public:
-	CConcept(int ID, LPCTSTR Name) { id = ID; name = Name; forget_hold = 0; }
-	CConcept() { id = 0; }
-	int id;
-	int forget_hold;	// how many times it has been looked at with no associations
-	CArray<int> associations;
-	CString name;
+	CMemoryNode() { type = MemType_Unknown; location = 0; value = 0; }
+	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; value = 0; }
+	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; value = 0; }
+	~CMemoryNode();
+
+	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
+
+	CNodeLink *FindLinkTo(int Location);
+	CNodeLink *FindLink(NODELINK_TYPE Type);
+	CNodeLink *FindLink(int Threshold, NODELINK_TYPE Type);
+	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
+
+	void FireLinksOfType(NODELINK_TYPE Type, CMind *Mind);
+	void FireLinksToType(MEMNODE_TYPE Type, CMind *Mind) {}
+	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
+	void FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind);
+	void FireLinksNotEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+	void FireLinksGreaterThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+	void FireLinksLessThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+
+	bool HasLinkTo(CMemoryNode *To) { return false; }
+
+	LPCTSTR ToString();
+
+	int location;
+	int value;
+	MEMNODE_TYPE type;
+
+	// This node's links
+	CList<CNodeLink *> links;
+
+	// Class statics ...
+	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
+	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	static CMemoryNode *all_nodes[MEMORY_SIZE];
+	static int last_memory_location;
 };
 
+
+// ----------------------------------------------------------------------------------------
+// CConceptSystem
+// ----------------------------------------------------------------------------------------
+class CConceptSystem
+{
+public:
+	CConceptSystem() { root = NULL; mind = NULL; }
+	void Fire(CNodeLink *Link);
+
+	CMind *mind;
+	CMemoryNode *root;
+};
+
+// ----------------------------------------------------------------------------------------
+// CExecutiveSystem
+// ----------------------------------------------------------------------------------------
+class CExecutiveSystem
+{
+public:
+	CExecutiveSystem() { root = NULL; mind = NULL; }
+	void Fire(CNodeLink *Link) {}
+
+	CMind *mind;
+	CMemoryNode *root;
+};
+
+// ----------------------------------------------------------------------------------------
+// CTextSystem
+// ----------------------------------------------------------------------------------------
+class CTextSystem
+{
+public:
+	CTextSystem() { root = NULL; mind = NULL; }
+	LPCTSTR BuildOutput(CMemoryNode *PathEnd);
+	
+	void Fire(CNodeLink *Link);
+	void LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
+	void LookAt(LPCTSTR Input);
+	TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
+	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
+
+	CMind *mind;
+	CMemoryNode *root;
+
+	CList<CString> input_queue;
+
+	CString last_received;
+	CString last_output;
+	int cur_offset;
+};
+
+// ----------------------------------------------------------------------------------------
+// CMind
+// ----------------------------------------------------------------------------------------
 class CMind
 {
 public:
 	CMind();
 	~CMind();
 
-	CAssociation *BuildAssociation(CStrings& Words, int ID);
-	CAssociation *BuildAssociation(CString& Input, int ID);
-	void CleanUpAssociations();
-	void CleanUpConcepts();
-	void DumpConcepts(CString& Output, FILE *fp);
-	void DumpAssociations(CString& Output, FILE *fp);
-	CConcept *EnsureConcept(LPCTSTR name, int ID);
+	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
+	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
+	void FireOne(CNodeLink *Link);
+	int Load(char *Filename);
+	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	int Save();
 	bool Think(CString& Output);
 
-	int Load();
-	int PurgeAssociation(int ID);
-	int PurgeConcept(int ConceptID, LPCTSTR Name);
-	int Save();
+	CMemoryNode *memory_root;
+	CConceptSystem concept_system;
+	CExecutiveSystem executive_system;
+	CTextSystem text_system;
 
-	CMap<int, int, CConcept *, CConcept *> concepts;
-	CMap<int, int, CAssociation *, CAssociation *> associations;
-	CMapStringToPtr concept_names;
-
-	int last_concept_id;
-	int last_assoc_id;
-
-	// Future general pattern processing
-	// int ProcessAudio(int *Stream);
-	// CTTNode *SearchTextNodes(int val, CTTNode *Start);
-	// CTTNode *text_tree;
+	CList<CNodeLink *> fire_queue;
 };

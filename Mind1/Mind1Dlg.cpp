@@ -59,6 +59,7 @@ BOOL CMind1Dlg::OnInitDialog()
 	// TODO: Add extra initialization here
 	ThinkTimerID = 101;
 	ThinkDelay = 1000;
+	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 
@@ -105,25 +106,7 @@ void CMind1Dlg::OnBnClickedOk()
 {
 	GetDlgItem(IDC_Info)->GetWindowText(theInfo);
 
-	if (theInfo[0] == '~')
-	{
-		char ch = toupper((char)theInfo[1]);
-		if (ch == 'A')
-		{
-			theInfo = theInfo.Mid(2);
-			int id = _tstoi(theInfo);
-			theMind.PurgeAssociation(id);
-		}
-		else if (ch == 'C')
-		{
-			theInfo = theInfo.Mid(2);
-			theMind.PurgeConcept(0, theInfo);
-		}
-	}
-	else
-	{
-		theMind.BuildAssociation(theInfo, 0);
-	}
+	theMind.text_system.ReceiveInput(theInfo);
 
 	theInfo.Empty();
 	GetDlgItem(IDC_Info)->SetWindowText(theInfo);
@@ -134,6 +117,7 @@ void CMind1Dlg::OnBnClickedOk()
 void CMind1Dlg::OnBnClickedCancel()
 {
 	// TODO: Add your control notification handler code here
+	KillTimer(ThinkTimerID);
 	CDialog::OnCancel();
 }
 
@@ -143,18 +127,23 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	KillTimer(ThinkTimerID);
 
 	bool refresh = theMind.Think(lastThought);
-	if (last_thought.Compare(lastThought) != 0)
-	{
-		SetDlgItemText(IDC_Thought, lastThought);
-		last_thought = lastThought;
-	}
+
+	SetDlgItemText(IDC_Thought, lastThought);
+	last_thought = lastThought;
+
+	//if (!theMind.text_system.last_output.IsEmpty())
+	//{
+	//	GetDlgItem(IDC_Output)->SetWindowText(theMind.text_system.last_output);
+	//	theMind.text_system.last_output.Empty();
+	//}
 
 	if (refresh)
 	{
 		Refresh();
 	}
 
-	SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	//SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	SetTimer(ThinkTimerID, 50, NULL);
 }
 
 void CMind1Dlg::OnBnClickedSave()
@@ -164,17 +153,17 @@ void CMind1Dlg::OnBnClickedSave()
 
 void CMind1Dlg::Refresh()
 {
-	theMind.DumpConcepts(output1, NULL);
-	theMind.DumpAssociations(output2, NULL);
-	output1.Replace(_T("\n"), _T("\r\n"));
-	output2.Replace(_T("\n"), _T("\r\n"));
+	//theMind.DumpConcepts(output1, NULL);
+	//theMind.DumpAssociations(output2, NULL);
+	//output1.Replace(_T("\n"), _T("\r\n"));
+	//output2.Replace(_T("\n"), _T("\r\n"));
 
-	GetDlgItem(IDC_Output)->SetWindowText(output1);
-	GetDlgItem(IDC_Output2)->SetWindowText(output2);
+	//GetDlgItem(IDC_Output)->SetWindowText(output1);
+	//GetDlgItem(IDC_Output2)->SetWindowText(output2);
 }
 
 void CMind1Dlg::OnBnClickedLoad()
 {
-	theMind.Load();
+	theMind.Load(FN_CONCEPTS);
 	Refresh();
 }

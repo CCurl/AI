@@ -3,309 +3,234 @@
 
 #define BUFSIZE 1024
 
+CMemoryNode *CMemoryNode::all_nodes[MEMORY_SIZE];
+int CMemoryNode::last_memory_location = 0;
+
+// ----------------------------------------------------------------------------------------
+// CMemoryNode
+// ----------------------------------------------------------------------------------------
+//int CMemoryNode::AddInput(CMemoryNode *Input)
+//{ 
+//	inputs.Add(Input);
+//	return inputs.GetSize(); 
+//}
+
+// ----------------------------------------------------------------------------------------
+//int CMemoryNode::AddOutput(CMemoryNode *Output)
+//{
+//	outputs.Add(Output);
+//	return outputs.GetSize();
+//}
+
+// ----------------------------------------------------------------------------------------
+CMemoryNode::~CMemoryNode()
+{
+	while (links.GetCount())
+	{
+		CNodeLink *link = links.GetHead();
+		delete link;
+		links.RemoveHead();
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
+{
+	CMemoryNode *ret = NULL;
+
+	while (last_memory_location < MEMORY_SIZE)
+	{
+		if (all_nodes[last_memory_location] == NULL)
+		{
+			ret = new CMemoryNode(Type, last_memory_location);
+			all_nodes[last_memory_location] = ret;
+			break;
+		}
+		last_memory_location++;
+	}
+	return ret;
+}
+
+// ----------------------------------------------------------------------------------------
+CNodeLink *CMemoryNode::FindLink(int Threshold, NODELINK_TYPE Type)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if ((link->threshold == Threshold) && (link->type == Type))
+		{
+			return link;
+		}
+	}
+	return NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+CNodeLink *CMemoryNode::FindLink(NODELINK_TYPE Type)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->type == Type)
+		{
+			return link;
+		}
+	}
+	return NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+CNodeLink *CMemoryNode::FindLinkOtherThan(MEMNODE_TYPE Type)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->type != Type)
+		{
+			return link;
+		}
+	}
+	return NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+CNodeLink *CMemoryNode::FindLinkTo(int Location)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->location == Location)
+		{
+			return link;
+		}
+	}
+	return NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if ((link->type == Type) && (link->threshold == Threshold))
+		{
+			Mind->Fire(link);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksOfType(NODELINK_TYPE Type, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->type == Type)
+		{
+			Mind->Fire(link);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->to->type != Type)
+		{
+			Mind->Fire(link);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::LinkTo(CMemoryNode *To, int Threshold, NODELINK_TYPE Type)
+{
+	links.AddTail(new CNodeLink(To, Threshold, Type));
+}
+
+// ----------------------------------------------------------------------------------------
+CMemoryNode *CMemoryNode::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
+{
+	if ((Location < 0) || (Location >= MEMORY_SIZE))
+		return NULL;
+
+	CMemoryNode *node = all_nodes[Location];
+	if ((node == NULL) && Add)
+	{
+		node = new CMemoryNode(Type, Location);
+		all_nodes[Location] = node;
+	}
+	return node;
+}
+
+// ----------------------------------------------------------------------------------------
+LPCTSTR CMemoryNode::ToString()
+{
+	static CString ret;
+	ret.Format(_T("%d,%d,%d,%d"), location, type, value, links.GetCount());
+
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->to->location);
+	}
+
+	if (type == TextNode)
+	{
+		ret.AppendFormat(_T(",%c"), char(value));
+	}
+	return ret;
+}
+
 // ----------------------------------------------------------------------------------------
 // CMind
 // ----------------------------------------------------------------------------------------
 CMind::CMind()
 {
-	last_concept_id = 0;
-	last_assoc_id = 0;
-	//text_tree = new CTTNode('A', 0);
-	Load();
+	for (int i = 0; i < MEMORY_SIZE; i++)
+	{
+		CMemoryNode::all_nodes[i] = NULL;
+	}
+
+	memory_root = NodeAt(MindRoot, true, MindRoot);
+
+	text_system.root = NodeAt(TextSystem, true, TextSystem);
+	text_system.mind = this;
+
+	concept_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
+	concept_system.mind = this;
+
+	executive_system.root = NodeAt(ExecutiveSystem, true, ExecutiveSystem);
+	executive_system.mind = this;
+
+	memory_root->LinkTo(NodeAt(ConceptSystem), 0, LINK_Wakeup);
+	memory_root->LinkTo(NodeAt(ExecutiveSystem), 0, LINK_Wakeup);
+	memory_root->LinkTo(NodeAt(TextSystem), 0, LINK_Wakeup);
 }
 
 // ----------------------------------------------------------------------------------------
 CMind::~CMind()
 {
-	int id;
-	CAssociation *assoc;
-	POSITION pos = concepts.GetStartPosition();
-	while (pos)
+	for (int i = 0; i < MEMORY_SIZE; i++)
 	{
-		associations.GetNextAssoc(pos, id, assoc);
-		delete assoc;
-	}
-	associations.RemoveAll();
-
-	CConcept *concept;
-	pos = concepts.GetStartPosition();
-	while (pos)
-	{
-		concepts.GetNextAssoc(pos, id, concept);
-		delete concept;
-	}
-	concepts.RemoveAll();
-}
-
-// ----------------------------------------------------------------------------------------
-void CMind::DumpConcepts(CString& Output, FILE *fp)
-{
-	Output.Empty();
-	for (int id = 1; id <= last_concept_id; id++)
-	{
-		CConcept *concept = NULL;
-		if (concepts.Lookup(id, concept))
-		{
-			Output.AppendFormat(_T("%d %s\n"), concept->id, concept->name);
-			if (fp)
-			{
-				fputws(Output, fp);
-				Output.Empty();
-			}
-		}
+		if (CMemoryNode::all_nodes[i])
+			delete CMemoryNode::all_nodes[i];
 	}
 }
 
-// ----------------------------------------------------------------------------------------
-void CMind::DumpAssociations(CString& Output, FILE *fp)
-{
-	Output.Empty();
-	CAssociation *assoc = NULL;
-	CConcept *concept = NULL;
-	int id = 0;
-
-
-	for (int id = 1; id <= last_assoc_id; id++)
-	{
-		if (!associations.Lookup(id, assoc))
-		{
-			continue;
-		}
-		Output.AppendFormat(_T("%d "), assoc->id);
-		POSITION pos2 = assoc->concepts.GetHeadPosition();
-		while (pos2)
-		{
-			int concept_id = assoc->concepts.GetNext(pos2);
-			if (concepts.Lookup(concept_id, concept))
-			{
-				Output.AppendFormat(_T("%s "), concept->name);
-			}
-			else
-			{
-				Output.AppendFormat(_T("notFound(%d) "), concept_id);
-			}
-		}
-		Output.AppendFormat(_T("\n"));
-		if (fp)
-		{
-			fputws(Output, fp);
-			Output.Empty();
-		}
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-CAssociation *CMind::BuildAssociation(CStrings& Words, int ID)
-{
-	CAssociation *assoc = NULL;
-	CString *word = Words.GetFirst();
-	if (Words.GetCount() > 1)
-	{
-		assoc = new CAssociation();
-		if (ID == 0)
-			ID = ++last_assoc_id;
-		assoc->id = ID;
-		associations.SetAt(assoc->id, assoc);
-	}
-
-	while (word)
-	{
-		CConcept *concept = NULL;
-		if (word->GetLength())
-		{
-			concept = EnsureConcept(*word, 0);
-			if (assoc)
-			{
-				assoc->concepts.AddTail(concept->id);
-				concept->associations.Add(assoc->id);
-			}
-		}
-		word = Words.GetNext();
-	}
-
-	return assoc;
-}
-
-// ----------------------------------------------------------------------------------------
-CAssociation *CMind::BuildAssociation(CString& Input, int ID)
-{
-	CStrings words;
-	words.Split(Input, ' ');
-	return BuildAssociation(words, ID);
-}
-
-// ----------------------------------------------------------------------------------------
-void CMind::CleanUpAssociations()
-{
-	CAssociation *assoc = NULL;
-	CConcept *concept = NULL;
-	CList<CAssociation *>delete_these;
-	int id, num, concept_id;
-
-	POSITION pos = associations.GetStartPosition();
-	while (pos)
-	{
-		associations.GetNextAssoc(pos, id, assoc);
-
-		POSITION pos2 = assoc->concepts.GetHeadPosition();
-		while (pos2)
-		{
-			concept_id = assoc->concepts.GetNext(pos2);
-			if (!concepts.Lookup(concept_id, concept))
-			{
-				delete_these.AddTail(assoc);
-				break;
-			}
-		}
-	}
-
-	num = 0;
-	pos = delete_these.GetHeadPosition();
-	while (pos)
-	{
-		assoc = delete_these.GetNext(pos);
-		associations.RemoveKey(assoc->id);
-		delete assoc;
-		num++;
-	}
-
-	if (num > 0)
-	{
-		CleanUpAssociations();
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CMind::CleanUpConcepts()
-{
-	CAssociation *assoc = NULL;
-	CConcept *concept = NULL;
-	CList<CConcept *>concepts_to_delete;
-	CList<int> ids_to_delete;
-	int id, num, assoc_id;
-
-	POSITION pos = concepts.GetStartPosition();
-	while (pos)
-	{
-		concepts.GetNextAssoc(pos, id, concept);
-
-		num = concept->associations.GetCount();
-		for (int i = 0; i < num; i++)
-		{
-			assoc_id = concept->associations.GetAt(i);
-			if (!associations.Lookup(assoc_id, assoc))
-			{
-				ids_to_delete.AddHead(i);
-			}
-		}
-
-		while (ids_to_delete.GetCount() > 0)
-		{
-			int index = ids_to_delete.GetHead();
-			concept->associations.RemoveAt(index);
-			ids_to_delete.RemoveHead();
-		}
-
-		if (concept->associations.GetCount() == 0)
-		{
-			++concept->forget_hold;
-			if (concept->forget_hold > FORGET_THRESHOLD)
-				concepts_to_delete.AddTail(concept);
-		}
-		else
-		{
-			concept->forget_hold = 0;
-		}
-	}
-
-	pos = concepts_to_delete.GetHeadPosition();
-	while (pos)
-	{
-		concept = concepts_to_delete.GetNext(pos);
-		concepts.RemoveKey(concept->id);
-		delete concept;
-	}
-
-	if (concepts_to_delete.GetCount() > 0)
-	{
-		CleanUpAssociations();
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-//int CMind::ProcessAudio(TCHAR *Word)
-//{
-//	CTTNode *res = NULL;
-//	CTTNode *node = text_tree;
-//	while (*Word)
-//	{
-//		TCHAR ch = *(Word++);
-//		CTTNode *res = SearchTextNodes(ch, node);
-//		if (!res)
-//		{
-//			res = new CTTNode(ch, 0);
-//			res->parent = node->parent;
-//			res->next = node->next;
-//			node->next = res;
-//		}
-//
-//		ch = *Word;
-//		if (ch)
-//		{
-//			if (!res->child)
-//			{
-//				res->child = new CTTNode(ch, 0);
-//				res->parent = res;
-//			}
-//			node = res->child;
-//		}
-//	}
-//	if (res->concept_id == 0)
-//		res->concept_id = ++last_concept_id;
-//	return res->concept_id;
-//}
-
-// ----------------------------------------------------------------------------------------
-//CTTNode *CMind::SearchTextNodes(TCHAR Ch, CTTNode *Start)
-//{
-//	while (Start)
-//	{
-//		if (Start->ch == Ch)
-//			break;
-//
-//		Start = Start->next;
-//	}
-//	return Start;
-//}
-
-// ----------------------------------------------------------------------------------------
-CConcept *CMind::EnsureConcept(LPCTSTR Name, int ID)
-{
-	if (*Name == NULL)
-		return NULL;
-
-	int id = ID;
-	CConcept *concept = NULL;
-	if (!concept_names.Lookup(Name, (void *&)id))
-	{
-		if (id == 0)
-		{
-			id = ++last_concept_id;
-		}
-		concept = new CConcept(id, Name);
-		concepts.SetAt(concept->id, concept);
-		concept_names.SetAt(concept->name, (void *)concept->id);
-	}
-	else
-	{
-		concepts.Lookup(id, concept);
-	}
-	last_concept_id = max(last_concept_id, id);
-	return concept;
-}
-
-// ----------------------------------------------------------------------------------------
-int CMind::Load()
+int CMind::Load(char *Filename)
 {
 	// int tmp = 0;
 	CStrings words;
@@ -313,7 +238,9 @@ int CMind::Load()
 	char buf[BUFSIZE];
 	FILE *fp = NULL;
 	CString line;
-	fopen_s(&fp, FN_CONCEPTS, "rt");
+
+	fopen_s(&fp, "Fish.txt", "rt");
+	//fopen_s(&fp, Filename, "rt");
 	if (fp)
 	{
 		while (fgets(buf, BUFSIZE, fp) == buf)
@@ -321,66 +248,28 @@ int CMind::Load()
 			line = buf;
 			line.TrimRight();
 			words.Split(line, ' ');
-			int id = words.GetIntAt(0);
+			CString *w = words.GetFirst();
+			while (w)
+			{
+				text_system.LearnThis(*w);
+				w = words.GetNext();
+			}
+			// int id = words.GetIntAt(0);
 			// id = ++tmp;
-			LPCTSTR name = words.GetAt(1);
-			EnsureConcept(name, id);
-			max_id = max(id, max_id);
+			// LPCTSTR name = words.GetAt(1);
+			//CMemoryNode *theThing = text_system.LearnThis(line);
+			num++;
 		}
 		fclose(fp);
-		last_concept_id = max_id;
 	}
 
-	// tmp = 0;
-	max_id = 0;
-	fopen_s(&fp, FN_ASSOCS, "rt");
-	if (fp)
-	{
-		while (fgets(buf, BUFSIZE, fp) == buf)
-		{
-			line = buf;
-			line.TrimRight();
-			words.Split(line, ' ');
-			int id = words.GetIntAt(0);
-			// id = ++tmp;
-			words.RemoveHead();
-			CAssociation *assoc = BuildAssociation(words, id);
-			max_id = max(id, max_id);
-		}
-		fclose(fp);
-		last_assoc_id = max_id;
-	}
 	return num;
 }
 
 // ----------------------------------------------------------------------------------------
-int CMind::PurgeAssociation(int ID)
+CMemoryNode *CMind::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
 {
-	CAssociation *a = NULL;
-	if (associations.Lookup(ID, a))
-	{
-		associations.RemoveKey(a->id);
-		delete a;
-	}
-	return ID;
-}
-
-// ----------------------------------------------------------------------------------------
-int CMind::PurgeConcept(int ID, LPCTSTR Name)
-{
-	if (ID == 0)
-	{
-		concept_names.Lookup(Name, (void *&)ID);
-	}
-
-	CConcept *c = NULL;
-	if (concepts.Lookup(ID, c))
-	{
-		concept_names.RemoveKey(c->name);
-		concepts.RemoveKey(c->id);
-		delete c;
-	}
-	return ID;
+	return CMemoryNode::NodeAt(Location, Add, Type);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -389,44 +278,238 @@ int CMind::Save()
 	CString line;
 	int num = 0;
 	FILE *fp = NULL;
-	fopen_s(&fp, FN_CONCEPTS, "wt");
+	fopen_s(&fp, FN_THEMIND, "wt");
 	if (fp)
 	{
-		DumpConcepts(line, fp);
-		fclose(fp);
-	}
-
-	fopen_s(&fp, FN_ASSOCS, "wt");
-	if (fp)
-	{
-		DumpAssociations(line, fp);
+		for (int i = 0; i < CMemoryNode::last_memory_location; i++)
+		{
+			CMemoryNode *n = NodeAt(i);
+			if (n)
+			{
+				fputws(n->ToString(), fp);
+				fputws(_T("\n"), fp);
+			}
+		}
 		fclose(fp);
 	}
 	return num;
 }
 
 // ----------------------------------------------------------------------------------------
+void CMind::FireOne(CNodeLink *Link)
+{
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		text_system.Fire(Link);
+		concept_system.Fire(Link);
+		executive_system.Fire(Link);
+		break;
+
+	case LINK_TextIn:
+	case LINK_TextOut:
+		text_system.Fire(Link);
+		break;
+
+	case LINK_Concept:
+		concept_system.Fire(Link);
+		break;
+
+	default:
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
 bool CMind::Think(CString& Output)
 {
-	static int cycle = 0;
+	const int MAX_CYCLES_PER_WAKEUP = 100;
+	int cycle = 0;
 
-	if (cycle % 10 == 0)
+	// Send out a "wakeup" event
+	CNodeLink wakeup_link(NULL, 0, LINK_Wakeup);
+	FireOne(&wakeup_link);
+
+	while (fire_queue.GetCount() > 0)
 	{
-		CleanUpConcepts();
-		CleanUpAssociations();
-		Output.Format(_T("cleanup ..."), ++cycle);
-		return true;
+		FireOne(fire_queue.RemoveHead());
+
+		if (++cycle > MAX_CYCLES_PER_WAKEUP)
+		{
+			break;
+		}
 	}
-	else
+
+	if (!text_system.last_output.IsEmpty())
 	{
-		Output.Format(_T("Please tell me more."), ++cycle);
+		Output = text_system.last_output;
+		text_system.last_output.Empty();
 	}
+
 	return false;
 }
 
 // ----------------------------------------------------------------------------------------
-// CAssociation
+// This is where the rubber meets the road.
 // ----------------------------------------------------------------------------------------
-CAssociation::~CAssociation()
+void CConceptSystem::Fire(CNodeLink *Link)
 {
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		break;
+
+	case LINK_Concept:
+	{
+		// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
+		CMemoryNode *node = mind->NodeAt(Link->to->location - 1);
+		while (node)
+		{
+			if (node->type == ConceptNode)
+			{
+				node->FireLinksOfType(LINK_TextOut, mind);
+				break;
+			}
+			node = mind->NodeAt(node->location - 1);
+		}
+
+		Link->to->FireLinksOfType(LINK_TextOut, mind);
+		// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
+	}
+	break;
+
+	default:
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+// CTextSystem
+// ----------------------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------------------
+// Builds a text string by walking backwards through the pathway.
+// ----------------------------------------------------------------------------------------
+LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
+{
+	CString output;
+
+	// Handle the case where the node is not a TextNode.
+	if ((PathEnd) && (PathEnd->type != TextNode))
+	{
+		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
+		PathEnd = link ? link->to : NULL;
+	}
+
+	while ((PathEnd) && (PathEnd->type == TextNode))
+	{
+		output.AppendChar(TCHAR(PathEnd->value));
+		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
+		PathEnd = link ? link->to : NULL;
+	}
+
+	if (!last_output.IsEmpty())
+	{
+		last_output.AppendChar(' ');
+	}
+	last_output.Append(output.MakeReverse());
+
+	return last_output;
+}
+
+// ----------------------------------------------------------------------------------------
+// This is where the rubber meets the road.
+// ----------------------------------------------------------------------------------------
+void CTextSystem::Fire(CNodeLink *Link)
+{
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		if (input_queue.GetCount() > 0)
+		{
+			CString input = input_queue.RemoveHead();
+			LookAt(input);
+		}
+		break;
+
+	case LINK_TextIn:
+	{
+		TCHAR ch = NextChar();
+		if (ch == NULL)
+		{
+			Link->to->FireLinksNotToType(TextNode, mind);
+		}
+		else
+		{
+			Link->to->FireLinksEqualTo(LINK_TextIn, ch, mind);
+		}
+	}
+		break;
+
+	case LINK_TextOut:
+		BuildOutput(Link->to);
+		break;
+
+	default:
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+// Learns the text by building a pathway to it.
+// ----------------------------------------------------------------------------------------
+void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
+{
+	if (*Input == NULL)
+		return;
+
+	CMemoryNode *cur = root;
+	last_received = Input;
+
+	while (*Input)
+	{
+		int ch = *(Input++);
+		CNodeLink *link = cur->FindLink(ch, LINK_TextIn);
+		CMemoryNode *to = link ? link->to : NULL;
+		if (!to)
+		{
+			to = CMemoryNode::AllocateNode(TextNode);
+			to->value = ch;
+			cur->LinkTo(to, ch, LINK_TextIn);
+			to->LinkTo(cur, cur->value, LINK_TextOut);
+		}
+		cur = to;
+	}
+
+	// At this point, cur is where (Thing) should go ...
+	if (Thing == NULL)
+	{
+		// No "Thing" was passed in, so create a new one ...
+		CNodeLink *link = cur->FindLinkOtherThan(TextNode);
+		Thing = link ? link->to : NULL;
+		if (Thing == NULL)
+		{
+			Thing = CMemoryNode::AllocateNode(ConceptNode);
+		}
+	}
+
+	// See if we already know about it ...
+	if (cur->FindLinkTo(Thing->location) == NULL)
+	{
+		cur->LinkTo(Thing, 0, LINK_Concept);
+		Thing->LinkTo(cur, cur->value, LINK_TextOut);
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+// Handles input provided.
+// If recognized, fires the output nodes.
+// ----------------------------------------------------------------------------------------
+void CTextSystem::LookAt(LPCTSTR Input)
+{
+	last_received = Input;
+	cur_offset = 0;
+	TCHAR ch = NextChar();
+
+	root->FireLinksEqualTo(LINK_TextIn, ch, mind);
 }
