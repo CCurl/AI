@@ -19,7 +19,7 @@ typedef enum {
 } MEMNODE_TYPE;
 
 typedef enum {
-	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept,
+	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept, LINK_Wakeup
 } NODELINK_TYPE;
 
 class CMind;
@@ -59,6 +59,7 @@ public:
 	CNodeLink *FindLink(int Threshold, NODELINK_TYPE Type);
 	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
 
+	void FireLinksOfType(NODELINK_TYPE Type, CMind *Mind);
 	void FireLinksToType(MEMNODE_TYPE Type, CMind *Mind) {}
 	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
 	void FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind);
@@ -91,7 +92,7 @@ public:
 class CConceptSystem
 {
 public:
-	CConceptSystem() {}
+	CConceptSystem() { root = NULL; mind = NULL; }
 	void Fire(CNodeLink *Link);
 
 	CMind *mind;
@@ -104,7 +105,7 @@ public:
 class CExecutiveSystem
 {
 public:
-	CExecutiveSystem() {}
+	CExecutiveSystem() { root = NULL; mind = NULL; }
 	void Fire(CNodeLink *Link) {}
 
 	CMind *mind;
@@ -117,7 +118,7 @@ public:
 class CTextSystem
 {
 public:
-	CTextSystem();
+	CTextSystem() { root = NULL; mind = NULL; }
 	LPCTSTR BuildOutput(CMemoryNode *PathEnd);
 	
 	void Fire(CNodeLink *Link);
@@ -125,7 +126,6 @@ public:
 	void LookAt(LPCTSTR Input);
 	TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
 	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
-	void WakeUp();
 
 	CMind *mind;
 	CMemoryNode *root;
@@ -133,7 +133,6 @@ public:
 	CList<CString> input_queue;
 
 	CString last_received;
-	CString output;
 	CString last_output;
 	int cur_offset;
 };
@@ -149,6 +148,7 @@ public:
 
 	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
 	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
+	void FireOne(CNodeLink *Link);
 	int Load(char *Filename);
 	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
 	int Save();

@@ -103,7 +103,7 @@ CNodeLink *CMemoryNode::FindLinkTo(int Location)
 	while (pos)
 	{
 		CNodeLink *link = links.GetNext(pos);
-		if (link->to->location != Location)
+		if (link->to->location == Location)
 		{
 			return link;
 		}
@@ -119,6 +119,20 @@ void CMemoryNode::FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Min
 	{
 		CNodeLink *link = links.GetNext(pos);
 		if ((link->type == Type) && (link->threshold == Threshold))
+		{
+			Mind->Fire(link);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CMemoryNode::FireLinksOfType(NODELINK_TYPE Type, CMind *Mind)
+{
+	POSITION pos = links.GetHeadPosition();
+	while (pos)
+	{
+		CNodeLink *link = links.GetNext(pos);
+		if (link->type == Type)
 		{
 			Mind->Fire(link);
 		}
@@ -192,14 +206,18 @@ CMind::CMind()
 
 	memory_root = NodeAt(MindRoot, true, MindRoot);
 
+	text_system.root = NodeAt(TextSystem, true, TextSystem);
+	text_system.mind = this;
+
 	concept_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
 	concept_system.mind = this;
 
-	executive_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
+	executive_system.root = NodeAt(ExecutiveSystem, true, ExecutiveSystem);
 	executive_system.mind = this;
 
-	text_system.root = NodeAt(TextSystem, true, TextSystem);
-	text_system.mind = this;
+	memory_root->LinkTo(NodeAt(ConceptSystem), 0, LINK_Wakeup);
+	memory_root->LinkTo(NodeAt(ExecutiveSystem), 0, LINK_Wakeup);
+	memory_root->LinkTo(NodeAt(TextSystem), 0, LINK_Wakeup);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -278,29 +296,46 @@ int CMind::Save()
 }
 
 // ----------------------------------------------------------------------------------------
+void CMind::FireOne(CNodeLink *Link)
+{
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		text_system.Fire(Link);
+		concept_system.Fire(Link);
+		executive_system.Fire(Link);
+		break;
+
+	case LINK_TextIn:
+	case LINK_TextOut:
+		text_system.Fire(Link);
+		break;
+
+	case LINK_Concept:
+		concept_system.Fire(Link);
+		break;
+
+	default:
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
 bool CMind::Think(CString& Output)
 {
-	static int cycle = 1;
-	static int last_ob = 1;
+	const int MAX_CYCLES_PER_WAKEUP = 100;
+	int cycle = 0;
 
-	//Output.Empty();
-	text_system.WakeUp();
+	// Send out a "wakeup" event
+	CNodeLink wakeup_link(NULL, 0, LINK_Wakeup);
+	FireOne(&wakeup_link);
 
 	while (fire_queue.GetCount() > 0)
 	{
-		CNodeLink *link = fire_queue.RemoveHead();
-		switch (link->type)
+		FireOne(fire_queue.RemoveHead());
+
+		if (++cycle > MAX_CYCLES_PER_WAKEUP)
 		{
-		case LINK_TextIn:
-		case LINK_TextOut:
-			text_system.Fire(link);
-			break;
-
-		case LINK_Concept:
-			concept_system.Fire(link);
-			break;
-
-		default:
 			break;
 		}
 	}
@@ -319,37 +354,47 @@ bool CMind::Think(CString& Output)
 // ----------------------------------------------------------------------------------------
 void CConceptSystem::Fire(CNodeLink *Link)
 {
-	CMemoryNode *node = Link->to;
-
-	// Testing ...
-	//mind->Fire(node->FindLink(LINK_TextOut));
-
-	node = mind->NodeAt(node->location - 1);
-	while (node)
+	switch (Link->type)
 	{
-		if (node->type == ConceptNode)
+	case LINK_Wakeup:
+		break;
+
+	case LINK_Concept:
+	{
+		// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
+		CMemoryNode *node = mind->NodeAt(Link->to->location - 1);
+		while (node)
 		{
-			mind->Fire(node->FindLink(LINK_TextOut));
-			break;
+			if (node->type == ConceptNode)
+			{
+				node->FireLinksOfType(LINK_TextOut, mind);
+				break;
+			}
+			node = mind->NodeAt(node->location - 1);
 		}
-		node = mind->NodeAt(node->location - 1);
+
+		Link->to->FireLinksOfType(LINK_TextOut, mind);
+		// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
+	}
+	break;
+
+	default:
+		break;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
 // CTextSystem
 // ----------------------------------------------------------------------------------------
-CTextSystem::CTextSystem()
-{
-	root = NULL;
-}
 
 // ----------------------------------------------------------------------------------------
 // Builds a text string by walking backwards through the pathway.
 // ----------------------------------------------------------------------------------------
 LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 {
-	output.Empty();
+	CString output;
+
+	// Handle the case where the node is not a TextNode.
 	if ((PathEnd) && (PathEnd->type != TextNode))
 	{
 		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
@@ -362,8 +407,14 @@ LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
 		PathEnd = link ? link->to : NULL;
 	}
-	output.MakeReverse();
-	return output;
+
+	if (!last_output.IsEmpty())
+	{
+		last_output.AppendChar(' ');
+	}
+	last_output.Append(output.MakeReverse());
+
+	return last_output;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -371,61 +422,41 @@ LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
 // ----------------------------------------------------------------------------------------
 void CTextSystem::Fire(CNodeLink *Link)
 {
-	CMemoryNode *node = Link->to;
-	if (Link->type == LINK_TextIn)
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		if (input_queue.GetCount() > 0)
+		{
+			CString input = input_queue.RemoveHead();
+			LookAt(input);
+		}
+		break;
+
+	case LINK_TextIn:
 	{
 		TCHAR ch = NextChar();
 		if (ch == NULL)
 		{
-			node->FireLinksNotToType(TextNode, mind);
-			// vvvvv --- for testing --- vvvvv
-			//Link = node->FindLinkOtherThan(TextNode);
-			//if (Link)
-			//{
-			//	Link = Link->to->FindLink(LINK_TextOut);
-			//	if (Link)
-			//	{
-			//		mind->Fire(Link);
-			//	}
-			//}
-			// ^^^^^ --- for testing --- ^^^^^
+			Link->to->FireLinksNotToType(TextNode, mind);
 		}
 		else
 		{
-			node->FireLinksEqualTo(LINK_TextIn, ch, mind);
-			//Link = node->FindLink(ch, LINK_TextIn);
-			//if (Link)
-			//{
-			//	mind->Fire(Link);
-			//}
+			Link->to->FireLinksEqualTo(LINK_TextIn, ch, mind);
 		}
-		return;
 	}
+		break;
 
-	if (Link->type == LINK_TextOut)
-	{
-		if (node->type == TextSystem)
-		{
-			// At the top ...
-			last_output.Append(output.MakeReverse());
-			output.Empty();
-		}
-		else if (node->type == TextNode)
-		{
-			output.AppendChar(TCHAR(node->value));
-			Link = node->FindLink(LINK_TextOut);
-			if (Link)
-			{
-				mind->Fire(Link);
-			}
-		}
+	case LINK_TextOut:
+		BuildOutput(Link->to);
+		break;
+
+	default:
+		break;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
 // Learns the text by building a pathway to it.
-// Returns the last node in the pathway.
-// This can be used as a backpointer to the pathway for output.
 // ----------------------------------------------------------------------------------------
 void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 {
@@ -453,27 +484,22 @@ void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	// At this point, cur is where (Thing) should go ...
 	if (Thing == NULL)
 	{
-		// No "Thing" was passed in, so create one ...
+		// No "Thing" was passed in, so create a new one ...
 		CNodeLink *link = cur->FindLinkOtherThan(TextNode);
 		Thing = link ? link->to : NULL;
 		if (Thing == NULL)
 		{
 			Thing = CMemoryNode::AllocateNode(ConceptNode);
-			cur->LinkTo(Thing, 0, LINK_Concept);
-			Thing->LinkTo(cur, cur->value, LINK_TextOut);
 		}
 	}
-	else
+
+	// See if we already know about it ...
+	if (cur->FindLinkTo(Thing->location) == NULL)
 	{
-		// See if we already know about it ...
-		if (cur->FindLinkTo(Thing->location) == NULL)
-		{
-			cur->LinkTo(Thing, 0, LINK_Concept);
-			Thing->LinkTo(cur, cur->value, LINK_TextOut);
-		}
+		cur->LinkTo(Thing, 0, LINK_Concept);
+		Thing->LinkTo(cur, cur->value, LINK_TextOut);
 	}
 }
-
 
 // ----------------------------------------------------------------------------------------
 // Handles input provided.
@@ -485,21 +511,5 @@ void CTextSystem::LookAt(LPCTSTR Input)
 	cur_offset = 0;
 	TCHAR ch = NextChar();
 
-	CNodeLink *link = root->FindLink(ch, LINK_TextIn);
-	if (link)
-	{
-		mind->Fire(link);
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-// Checks to see if there are any requests or input to process.
-// ----------------------------------------------------------------------------------------
-void CTextSystem::WakeUp()
-{
-	if (input_queue.GetCount() > 0)
-	{
-		CString input = input_queue.RemoveHead();
-		LookAt(input);
-	}
+	root->FireLinksEqualTo(LINK_TextIn, ch, mind);
 }
