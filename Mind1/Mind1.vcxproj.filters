@@ -18,6 +18,7 @@
     <Text Include="ReadMe.txt" />
     <Text Include="Concepts.txt" />
     <Text Include="Associations.txt" />
+    <Text Include="TheMind.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Mind1.h">
