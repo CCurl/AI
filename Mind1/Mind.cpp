@@ -7,22 +7,6 @@ CMemoryNode *CMemoryNode::all_nodes[MEMORY_SIZE];
 int CMemoryNode::last_memory_location = 0;
 
 // ----------------------------------------------------------------------------------------
-// CMemoryNode
-// ----------------------------------------------------------------------------------------
-//int CMemoryNode::AddInput(CMemoryNode *Input)
-//{ 
-//	inputs.Add(Input);
-//	return inputs.GetSize(); 
-//}
-
-// ----------------------------------------------------------------------------------------
-//int CMemoryNode::AddOutput(CMemoryNode *Output)
-//{
-//	outputs.Add(Output);
-//	return outputs.GetSize();
-//}
-
-// ----------------------------------------------------------------------------------------
 CMemoryNode::~CMemoryNode()
 {
 	while (links.GetCount())
@@ -36,19 +20,25 @@ CMemoryNode::~CMemoryNode()
 // ----------------------------------------------------------------------------------------
 CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
 {
-	CMemoryNode *ret = NULL;
-
-	while (last_memory_location < MEMORY_SIZE)
+	int loc = last_memory_location+1;
+	while (loc < MEMORY_SIZE)
 	{
-		if (all_nodes[last_memory_location] == NULL)
+		CMemoryNode *node = all_nodes[loc];
+		if (node == NULL)
 		{
-			ret = new CMemoryNode(Type, last_memory_location);
-			all_nodes[last_memory_location] = ret;
-			break;
+			node = new CMemoryNode(MemType_Unknown, loc);
+			all_nodes[loc] = node;
 		}
-		last_memory_location++;
+
+		if (node->type == MemType_Unknown)
+		{
+			node->type = Type;
+			last_memory_location = loc;
+			return node;
+		}
+		loc++;
 	}
-	return ret;
+	return NULL;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -156,22 +146,35 @@ void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
 // ----------------------------------------------------------------------------------------
 void CMemoryNode::LinkTo(CMemoryNode *To, int Threshold, NODELINK_TYPE Type)
 {
-	links.AddTail(new CNodeLink(To, Threshold, Type));
+	if (To != NULL)
+	{
+		links.AddTail(new CNodeLink(To, Threshold, Type));
+	}
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
+CMemoryNode *CMemoryNode::CreateNodeAt(int Location, MEMNODE_TYPE Type)
 {
-	if ((Location < 0) || (Location >= MEMORY_SIZE))
-		return NULL;
-
-	CMemoryNode *node = all_nodes[Location];
-	if ((node == NULL) && Add)
+	if ((0 <= Location) && (Location < MEMORY_SIZE))
 	{
-		node = new CMemoryNode(Type, Location);
-		all_nodes[Location] = node;
+		CMemoryNode *node = all_nodes[Location];
+
+		if (node == NULL)
+		{
+			node = new CMemoryNode(Type, Location);
+			all_nodes[Location] = node;
+		}
+		node->type = Type;
+
+		return node;
 	}
-	return node;
+	return NULL;
+}
+
+// ----------------------------------------------------------------------------------------
+CMemoryNode *CMemoryNode::NodeAt(int Location)
+{
+	return ((0 <= Location) && (Location < MEMORY_SIZE)) ? all_nodes[Location] : NULL;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -201,23 +204,21 @@ CMind::CMind()
 {
 	for (int i = 0; i < MEMORY_SIZE; i++)
 	{
-		CMemoryNode::all_nodes[i] = NULL;
+		CMemoryNode::all_nodes[i] = NULL; // new CMemoryNode(MemType_Unknown, i);
 	}
 
-	memory_root = NodeAt(MindRoot, true, MindRoot);
+	root = CMemoryNode::CreateNodeAt(MindRoot, MindRoot);
+	text_system.root = CMemoryNode::CreateNodeAt(TextSystem, TextSystem);
+	concept_system.root = CMemoryNode::CreateNodeAt(ConceptSystem, ConceptSystem);
+	executive_system.root = CMemoryNode::CreateNodeAt(ExecutiveSystem, ExecutiveSystem);
 
-	text_system.root = NodeAt(TextSystem, true, TextSystem);
 	text_system.mind = this;
-
-	concept_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
 	concept_system.mind = this;
-
-	executive_system.root = NodeAt(ExecutiveSystem, true, ExecutiveSystem);
 	executive_system.mind = this;
 
-	memory_root->LinkTo(NodeAt(ConceptSystem), 0, LINK_Wakeup);
-	memory_root->LinkTo(NodeAt(ExecutiveSystem), 0, LINK_Wakeup);
-	memory_root->LinkTo(NodeAt(TextSystem), 0, LINK_Wakeup);
+	root->LinkTo(NodeAt(ConceptSystem), 0, LINK_Wakeup);
+	root->LinkTo(NodeAt(ExecutiveSystem), 0, LINK_Wakeup);
+	root->LinkTo(NodeAt(TextSystem), 0, LINK_Wakeup);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -267,9 +268,9 @@ int CMind::Load(char *Filename)
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMind::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
+CMemoryNode *CMind::NodeAt(int Location)
 {
-	return CMemoryNode::NodeAt(Location, Add, Type);
+	return CMemoryNode::NodeAt(Location);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -301,8 +302,6 @@ void CMind::FireOne(CNodeLink *Link)
 	switch (Link->type)
 	{
 	case LINK_Wakeup:
-		text_system.Fire(Link);
-		concept_system.Fire(Link);
 		executive_system.Fire(Link);
 		break;
 
@@ -311,8 +310,9 @@ void CMind::FireOne(CNodeLink *Link)
 		text_system.Fire(Link);
 		break;
 
-	case LINK_Concept:
-		concept_system.Fire(Link);
+	case LINK_ConceptAdded:
+	case LINK_ConceptFound:
+		executive_system.Fire(Link);
 		break;
 
 	default:
@@ -358,25 +358,6 @@ void CConceptSystem::Fire(CNodeLink *Link)
 	{
 	case LINK_Wakeup:
 		break;
-
-	case LINK_Concept:
-	{
-		// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
-		CMemoryNode *node = mind->NodeAt(Link->to->location - 1);
-		while (node)
-		{
-			if (node->type == ConceptNode)
-			{
-				node->FireLinksOfType(LINK_TextOut, mind);
-				break;
-			}
-			node = mind->NodeAt(node->location - 1);
-		}
-
-		Link->to->FireLinksOfType(LINK_TextOut, mind);
-		// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
-	}
-	break;
 
 	default:
 		break;
@@ -433,17 +414,36 @@ void CTextSystem::Fire(CNodeLink *Link)
 		break;
 
 	case LINK_TextIn:
-	{
-		TCHAR ch = NextChar();
-		if (ch == NULL)
 		{
-			Link->to->FireLinksNotToType(TextNode, mind);
+			CMemoryNode *cur = Link->to;
+			TCHAR ch = NextChar();
+			if (ch == NULL)
+			{
+				CNodeLink *link = cur->FindLinkOtherThan(TextNode);
+				if (link == NULL)
+				{
+					// This must be a totally new word we haven't seen yet
+					CMemoryNode *next_node = CMemoryNode::AllocateNode(ConceptNode);
+					next_node->value = ch;
+					cur->LinkTo(next_node, ch, LINK_ConceptAdded);
+					next_node->LinkTo(cur, cur->value, LINK_TextOut);
+				}
+				Link->to->FireLinksNotToType(TextNode, mind);
+			}
+			else
+			{
+				CNodeLink *next_link = cur->FindLink(ch, LINK_TextIn);
+				// Build path if necessary
+				if (next_link == NULL)
+				{
+					CMemoryNode *next_node = CMemoryNode::AllocateNode(TextNode);
+					next_node->value = ch;
+					cur->LinkTo(next_node, ch, LINK_TextIn);
+					next_node->LinkTo(cur, cur->value, LINK_TextOut);
+				}
+				cur->FireLinksEqualTo(LINK_TextIn, ch, mind);
+			}
 		}
-		else
-		{
-			Link->to->FireLinksEqualTo(LINK_TextIn, ch, mind);
-		}
-	}
 		break;
 
 	case LINK_TextOut:
@@ -496,7 +496,7 @@ void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
 	// See if we already know about it ...
 	if (cur->FindLinkTo(Thing->location) == NULL)
 	{
-		cur->LinkTo(Thing, 0, LINK_Concept);
+		cur->LinkTo(Thing, 0, LINK_ConceptFound);
 		Thing->LinkTo(cur, cur->value, LINK_TextOut);
 	}
 }
@@ -512,4 +512,45 @@ void CTextSystem::LookAt(LPCTSTR Input)
 	TCHAR ch = NextChar();
 
 	root->FireLinksEqualTo(LINK_TextIn, ch, mind);
+}
+
+// ----------------------------------------------------------------------------------------
+// CTextSystem
+// ----------------------------------------------------------------------------------------
+void CExecutiveSystem::Fire(CNodeLink *Link)
+{
+	switch (Link->type)
+	{
+	case LINK_Wakeup:
+		mind->text_system.Fire(Link);
+		mind->concept_system.Fire(Link);
+		break;
+
+	case LINK_ConceptFound:
+		{
+			// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
+			CMemoryNode *node = mind->NodeAt(Link->to->location - 1);
+			while (node)
+			{
+				if (node->type == ConceptNode)
+				{
+					node->FireLinksOfType(LINK_TextOut, mind);
+					break;
+				}
+				node = mind->NodeAt(node->location - 1);
+			}
+
+			Link->to->FireLinksOfType(LINK_TextOut, mind);
+			// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
+		}
+		break;
+
+	case LINK_ConceptAdded:
+		{
+			Link->type = LINK_ConceptFound;
+			// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
+			// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
+		}
+		break;
+	}
 }

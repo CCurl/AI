@@ -96,12 +96,6 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="Associations.txt" />
-    <Text Include="Concepts.txt" />
-    <Text Include="ReadMe.txt" />
-    <Text Include="TheMind.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="Mind1.h" />
     <ClInclude Include="Mind1Dlg.h" />
     <ClInclude Include="Mind.h" />
@@ -127,6 +121,8 @@
     <None Include="res\Mind1.rc2" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\bitmap1.bmp" />
+    <Image Include="res\bitmap2.bmp" />
     <Image Include="res\Mind1.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -19,7 +19,10 @@ typedef enum {
 } MEMNODE_TYPE;
 
 typedef enum {
-	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept, LINK_Wakeup
+	LINK_Unknown, 
+	LINK_TextIn, LINK_TextOut, 
+	LINK_ConceptFound, LINK_ConceptAdded,
+	LINK_Wakeup
 } NODELINK_TYPE;
 
 class CMind;
@@ -80,7 +83,8 @@ public:
 
 	// Class statics ...
 	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	static CMemoryNode *CreateNodeAt(int Location, MEMNODE_TYPE Type);
+	static CMemoryNode *NodeAt(int Location);
 	static CMemoryNode *all_nodes[MEMORY_SIZE];
 	static int last_memory_location;
 };
@@ -106,7 +110,7 @@ class CExecutiveSystem
 {
 public:
 	CExecutiveSystem() { root = NULL; mind = NULL; }
-	void Fire(CNodeLink *Link) {}
+	void Fire(CNodeLink *Link);
 
 	CMind *mind;
 	CMemoryNode *root;
@@ -150,11 +154,11 @@ public:
 	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
 	void FireOne(CNodeLink *Link);
 	int Load(char *Filename);
-	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	CMemoryNode *NodeAt(int Location);
 	int Save();
 	bool Think(CString& Output);
 
-	CMemoryNode *memory_root;
+	CMemoryNode *root;
 	CConceptSystem concept_system;
 	CExecutiveSystem executive_system;
 	CTextSystem text_system;
