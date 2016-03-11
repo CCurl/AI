@@ -14,74 +14,74 @@ typedef enum {
 	// Systems first
 	TextSystem, ConceptSystem, ExecutiveSystem, 
 
-	TextNode, ConceptNode, ExecutiveNode,
-	MemType_Unknown = 999
-} MEMNODE_TYPE;
+	TextNeuron, ConceptNeuron, ExecutiveNeuron,
+	NT_Unknown = 999
+} NEURON_T;
 
 typedef enum {
-	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept, LINK_Wakeup
-} NODELINK_TYPE;
+	DT_Unknown, DT_TextIn, DT_TextOut, DT_Concept, DT_Wakeup
+} DENDRON_T;
 
 class CMind;
-class CMemoryNode;
+class CNeuron;
 class CConceptSystem;
 class CExecutiveSystem;
 class CTextSystem;
 
 // ----------------------------------------------------------------------------------------
-// CNodeLink
+// CDendron
 // ----------------------------------------------------------------------------------------
-class CNodeLink
+class CDendron
 {
 public:
-	CNodeLink() { to = NULL; threshold = 0; type = LINK_Unknown; }
-	CNodeLink(CMemoryNode *To, int Threshold, NODELINK_TYPE Type) { to = To; threshold = Threshold; type = Type; }
-	CMemoryNode *to;
+	CDendron() { to = NULL; threshold = 0; type = DT_Unknown; }
+	CDendron(CNeuron *To, int Threshold, DENDRON_T Type) { to = To; threshold = Threshold; type = Type; }
+	CNeuron *to;
 	int threshold;
-	NODELINK_TYPE type;
+	DENDRON_T type;
 };
 
 // ----------------------------------------------------------------------------------------
-// CMemoryNode
+// CNeuron
 // ----------------------------------------------------------------------------------------
-class CMemoryNode
+class CNeuron
 {
 public:
-	CMemoryNode() { type = MemType_Unknown; location = 0; value = 0; }
-	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; value = 0; }
-	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; value = 0; }
-	~CMemoryNode();
+	CNeuron() { type = NT_Unknown; location = 0; value = 0; }
+	CNeuron(NEURON_T Type) { type = Type; location = 0; value = 0; }
+	CNeuron(NEURON_T Type, int Loc) { type = Type; location = Loc; value = 0; }
+	~CNeuron();
 
-	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
+	void LinkTo(CNeuron *To, int Trigger, DENDRON_T Type);
 
-	CNodeLink *FindLinkTo(int Location);
-	CNodeLink *FindLink(NODELINK_TYPE Type);
-	CNodeLink *FindLink(int Threshold, NODELINK_TYPE Type);
-	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
+	CDendron *FindDendronTo(int Location);
+	CDendron *FindDendron(DENDRON_T Type);
+	CDendron *FindDendron(int Threshold, DENDRON_T Type);
+	CDendron *FindDendronOtherThan(NEURON_T Type);
 
-	void FireLinksOfType(NODELINK_TYPE Type, CMind *Mind);
-	void FireLinksToType(MEMNODE_TYPE Type, CMind *Mind) {}
-	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
-	void FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind);
-	void FireLinksNotEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
-	void FireLinksGreaterThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
-	void FireLinksLessThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
+	void ActivateDendronsOfType(DENDRON_T Type, CMind *Mind);
+	void ActivateDendronsToType(NEURON_T Type, CMind *Mind) {}
+	void ActivateDendronsNotToType(NEURON_T Type, CMind *Mind);
+	void ActivateDendronsEqualTo(DENDRON_T Type, int Threshold, CMind *Mind);
+	void ActivateDendronsNotEqualTo(DENDRON_T Type, int Threshold, CMind *Mind) {}
+	void ActivateDendronsGreaterThan(DENDRON_T Type, int Threshold, CMind *Mind) {}
+	void ActivateDendronsLessThan(DENDRON_T Type, int Threshold, CMind *Mind) {}
 
-	bool HasLinkTo(CMemoryNode *To) { return false; }
+	bool HasLinkTo(CNeuron *To) { return false; }
 
 	LPCTSTR ToString();
 
 	int location;
 	int value;
-	MEMNODE_TYPE type;
+	NEURON_T type;
 
 	// This node's links
-	CList<CNodeLink *> links;
+	CList<CDendron *> links;
 
 	// Class statics ...
-	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
-	static CMemoryNode *all_nodes[MEMORY_SIZE];
+	static CNeuron *AllocateNeuron(NEURON_T Type = NT_Unknown);
+	static CNeuron *NeuronAt(int Location, bool Add = false, NEURON_T Type = NT_Unknown);
+	static CNeuron *all_neurons[MEMORY_SIZE];
 	static int last_memory_location;
 };
 
@@ -93,10 +93,10 @@ class CConceptSystem
 {
 public:
 	CConceptSystem() { root = NULL; mind = NULL; }
-	void Fire(CNodeLink *Link);
+	void Fire(CDendron *Link);
 
 	CMind *mind;
-	CMemoryNode *root;
+	CNeuron *root;
 };
 
 // ----------------------------------------------------------------------------------------
@@ -106,10 +106,10 @@ class CExecutiveSystem
 {
 public:
 	CExecutiveSystem() { root = NULL; mind = NULL; }
-	void Fire(CNodeLink *Link) {}
+	void Fire(CDendron *Link) {}
 
 	CMind *mind;
-	CMemoryNode *root;
+	CNeuron *root;
 };
 
 // ----------------------------------------------------------------------------------------
@@ -119,16 +119,16 @@ class CTextSystem
 {
 public:
 	CTextSystem() { root = NULL; mind = NULL; }
-	LPCTSTR BuildOutput(CMemoryNode *PathEnd);
+	LPCTSTR BuildOutput(CNeuron *PathEnd);
 	
-	void Fire(CNodeLink *Link);
-	void LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
+	void Fire(CDendron *Link);
+	void LearnThis(LPCTSTR Input, CNeuron *Thing = NULL);
 	void LookAt(LPCTSTR Input);
 	TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
 	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
 
 	CMind *mind;
-	CMemoryNode *root;
+	CNeuron *root;
 
 	CList<CString> input_queue;
 
@@ -146,18 +146,18 @@ public:
 	CMind();
 	~CMind();
 
-	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
-	void FireOne(CNodeLink *Link);
+	CNeuron *AllocateNeuron(NEURON_T Type = NT_Unknown);
+	void Fire(CDendron *Link) { if (Link) fire_queue.AddTail(Link); }
+	void FireOne(CDendron *Link);
 	int Load(char *Filename);
-	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	CNeuron *NeuronAt(int Location, bool Add = false, NEURON_T Type = NT_Unknown);
 	int Save();
 	bool Think(CString& Output);
 
-	CMemoryNode *memory_root;
+	CNeuron *memory_root;
 	CConceptSystem concept_system;
 	CExecutiveSystem executive_system;
 	CTextSystem text_system;
 
-	CList<CNodeLink *> fire_queue;
+	CList<CDendron *> fire_queue;
 };
