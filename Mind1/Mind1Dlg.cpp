@@ -63,11 +63,11 @@ BOOL CMind1Dlg::OnInitDialog()
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 
-	return TRUE;  // return TRUE  unless you set the focus to a control
+	return TRUE;  // return TRUE  unless you set the focus pToDendron a control
 }
 
-// If you add a minimize button to your dialog, you will need the code below
-//  to draw the icon.  For MFC applications using the document/view model,
+// If you add a minimize button pToDendron your dialog, you will need the code below
+//  pToDendron draw the icon.  For MFC applications using the document/view model,
 //  this is automatically done for you by the framework.
 
 void CMind1Dlg::OnPaint()
@@ -95,7 +95,7 @@ void CMind1Dlg::OnPaint()
 	}
 }
 
-// The system calls this function to obtain the cursor to display while the user drags
+// The system calls this function pToDendron obtain the cursor pToDendron display while the user drags
 //  the minimized window.
 HCURSOR CMind1Dlg::OnQueryDragIcon()
 {

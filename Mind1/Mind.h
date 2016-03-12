@@ -34,11 +34,22 @@ class CTextSystem;
 class CDendron
 {
 public:
-	CDendron() { to = NULL; threshold = 0; type = DT_Unknown; }
-	CDendron(CNeuron *To, int Threshold, DENDRON_T Type) { to = To; threshold = Threshold; type = Type; }
-	CNeuron *to;
-	int threshold;
+	CDendron() { pToDendron = NULL; threshold = 0; type = DT_Unknown; }
+	CDendron(CNeuron *To, int Threshold, DENDRON_T Type) { pToDendron = To; threshold = Threshold; type = Type; }
+	CDendron(int From, int To, float Weight) { from = From;  to = To; weight = Weight; strength = 1; }
+	int from, to, strength;
+	float weight;
+
+	CNeuron *From(); // { return CNeuron::NeuronAt(from); }
+	CNeuron *To(); // { return CNeuron::NeuronAt(to); }
+	void Activate();
+
+	// deprecated
 	DENDRON_T type;
+	CNeuron *pToDendron;
+	int threshold;
+
+	static void GrowDendron(int From, int To, float Weight);
 };
 
 // ----------------------------------------------------------------------------------------
@@ -52,13 +63,16 @@ public:
 	CNeuron(NEURON_T Type, int Loc) { type = Type; location = Loc; value = 0; }
 	~CNeuron();
 
-	void LinkTo(CNeuron *To, int Trigger, DENDRON_T Type);
+	void GrowDendronTo(CNeuron *To, int Trigger, DENDRON_T Type);
+	void GrowDendronTo(CNeuron *To, float Weight);
 
 	CDendron *FindDendronTo(int Location);
 	CDendron *FindDendron(DENDRON_T Type);
 	CDendron *FindDendron(int Threshold, DENDRON_T Type);
 	CDendron *FindDendronOtherThan(NEURON_T Type);
 
+	void Activate();
+	void Activated();
 	void ActivateDendronsOfType(DENDRON_T Type, CMind *Mind);
 	void ActivateDendronsToType(NEURON_T Type, CMind *Mind) {}
 	void ActivateDendronsNotToType(NEURON_T Type, CMind *Mind);
@@ -72,11 +86,14 @@ public:
 	LPCTSTR ToString();
 
 	int location;
+	int layer;
 	int value;
+	bool activated;
 	NEURON_T type;
 
-	// This node's links
-	CList<CDendron *> links;
+	// This node's dendrons
+	CList<CDendron *> dendrons_out;
+	CList<CDendron *> dendrons_in;
 
 	// Class statics ...
 	static CNeuron *AllocateNeuron(NEURON_T Type = NT_Unknown);
@@ -160,4 +177,6 @@ public:
 	CTextSystem text_system;
 
 	CList<CDendron *> fire_queue;
+	static CList<CNeuron *> activated;
+	static void ActivateNeuron(CNeuron *Neuron) { activated.AddTail(Neuron); }
 };
