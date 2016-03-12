@@ -4,6 +4,7 @@
 
 #pragma once
 #include "Mind.h"
+#include "afxwin.h"
 
 // CMind1Dlg dialog
 class CMind1Dlg : public CDialog
@@ -35,6 +36,7 @@ public:
 	afx_msg void OnBnClickedLoad();
 	afx_msg void OnTimer(UINT_PTR TimerID);
 
+	void MakeCharBM(LPCTSTR Char);
 	void Refresh();
 
 	// CMind theMind;
@@ -44,4 +46,7 @@ public:
 	CString output2;
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
+	//CImage theImage;
+	//CStatic *thePic;
+	CStatic anImage;
 };

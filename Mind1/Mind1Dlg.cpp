@@ -32,6 +32,7 @@ void CMind1Dlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Text(pDX, IDC_Output, output1);
 	//DDX_Text(pDX, IDC_Output2, output2);
 	// DDX_Text(pDX, IDC_Thought, lastThought);
+	DDX_Control(pDX, IDC_STATIC_P, anImage);
 }
 
 BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
@@ -56,18 +57,44 @@ BOOL CMind1Dlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// Set big icon
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
-	// TODO: Add extra initialization here
+	MakeCharBM(_T("F"));
+
 	ThinkTimerID = 101;
 	ThinkDelay = 1000;
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 
-	return TRUE;  // return TRUE  unless you set the focus pToDendron a control
+	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
-// If you add a minimize button pToDendron your dialog, you will need the code below
-//  pToDendron draw the icon.  For MFC applications using the document/view model,
+void CMind1Dlg::MakeCharBM(LPCTSTR Char)
+{
+	CBitmap bitMap;
+	bitMap.Attach(anImage.GetBitmap());
+
+	BITMAP bm;
+	bitMap.GetBitmap(&bm);
+
+	RECT r;
+	r.top = r.left = 0;
+	r.right = bm.bmWidth;
+	r.bottom = bm.bmHeight;
+
+	CDC memDC, *curDC = GetDC();
+	memDC.CreateCompatibleDC(curDC);
+	HGDIOBJ old = memDC.SelectObject(&bitMap);
+	memDC.SetBkMode(OPAQUE);
+	memDC.FillSolidRect(&r, RGB(255, 255, 255));
+	memDC.TextOutW(2, 2, Char, 1);
+	memDC.SelectObject(old);
+	ReleaseDC(curDC);
+
+	anImage.SetBitmap((HBITMAP)bitMap.Detach());
+	anImage.Invalidate();
+}
+// If you add a minimize button to your dialog, you will need the code below
+//  to draw the icon.  For MFC applications using the document/view model,
 //  this is automatically done for you by the framework.
 
 void CMind1Dlg::OnPaint()
@@ -92,10 +119,14 @@ void CMind1Dlg::OnPaint()
 	else
 	{
 		CDialog::OnPaint();
+		//CPaintDC dc(this); // device context for painting
+		//CRect r;
+		//GetClientRect(&r);
+		//theImage.TransparentBlt(dc.m_hDC, 0, 0, r.Width(), r.Height(), RGB(255, 255, 255));
 	}
 }
 
-// The system calls this function pToDendron obtain the cursor pToDendron display while the user drags
+// The system calls this function to obtain the cursor to display while the user drags
 //  the minimized window.
 HCURSOR CMind1Dlg::OnQueryDragIcon()
 {
@@ -105,6 +136,8 @@ HCURSOR CMind1Dlg::OnQueryDragIcon()
 void CMind1Dlg::OnBnClickedOk()
 {
 	GetDlgItem(IDC_Info)->GetWindowText(theInfo);
+
+	MakeCharBM(theInfo);
 
 	theMind.text_system.ReceiveInput(theInfo);
 
@@ -118,6 +151,9 @@ void CMind1Dlg::OnBnClickedCancel()
 {
 	// TODO: Add your control notification handler code here
 	KillTimer(ThinkTimerID);
+
+	//CImage img;
+	//img.loa
 	CDialog::OnCancel();
 }
 

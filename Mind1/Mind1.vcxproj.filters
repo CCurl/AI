@@ -15,12 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-    <Text Include="Concepts.txt" />
-    <Text Include="Associations.txt" />
-    <Text Include="TheMind.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="Mind1.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -72,6 +66,12 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\Mind1.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\bitmap1.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\bitmap2.bmp">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
