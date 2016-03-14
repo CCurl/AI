@@ -94,7 +94,7 @@ void CMind1Dlg::TestBitmap()
 		while (bitNum < bm.bmWidth)
 		{
 			BYTE b = (data & 0x80);
-			char ch = (b != 0) ? '0' : '1';
+			char ch = (b != 0) ? '_' : '*';
 			line.AppendChar(ch);
 			data = data << 1;
 			++bitNum;
@@ -108,7 +108,10 @@ void CMind1Dlg::TestBitmap()
 		tmp.Append(line);
 		tmp.Append(_T("\n"));
 	}
-	ATLTRACE(_T("\n%s"), tmp);
+	tmp.Replace(_T("\n"), _T("\r\n"));
+	GetDlgItem(IDC_Output)->SetWindowText(tmp);
+
+	//ATLTRACE(_T("\n%s"), tmp);
 	free(bm.bmBits);
 
 	anImage.SetBitmap((HBITMAP)bitMap.Detach());
