@@ -99,6 +99,7 @@
     <ClInclude Include="Mind1.h" />
     <ClInclude Include="Mind1Dlg.h" />
     <ClInclude Include="Mind.h" />
+    <ClInclude Include="NNTest.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="StringUtils.h" />
@@ -109,6 +110,7 @@
     <ClCompile Include="Mind1.cpp" />
     <ClCompile Include="Mind1Dlg.cpp" />
     <ClCompile Include="Mind.cpp" />
+    <ClCompile Include="NNTest.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

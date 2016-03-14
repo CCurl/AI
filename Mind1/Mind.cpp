@@ -23,13 +23,23 @@ int CNeuron::last_memory_location = 0;
 //}
 
 // ----------------------------------------------------------------------------------------
+CNeuron::CNeuron()
+{
+	type = NT_Unknown; 
+	location = 0; 
+	value = 0; 
+	dVal = 0; 
+	activated = false;
+}
+
+// ----------------------------------------------------------------------------------------
 CNeuron::~CNeuron()
 {
-	while (dendrons_out.GetCount())
+	while (boutons.GetCount())
 	{
-		CDendron *link = dendrons_out.GetHead();
+		CDendron *link = boutons.GetHead();
 		delete link;
-		dendrons_out.RemoveHead();
+		boutons.RemoveHead();
 	}
 }
 
@@ -54,10 +64,10 @@ CNeuron *CNeuron::AllocateNeuron(NEURON_T Type)
 // ----------------------------------------------------------------------------------------
 CDendron *CNeuron::FindDendron(int Threshold, DENDRON_T Type)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *link = dendrons_out.GetNext(pos);
+		CDendron *link = boutons.GetNext(pos);
 		if ((link->threshold == Threshold) && (link->type == Type))
 		{
 			return link;
@@ -69,10 +79,10 @@ CDendron *CNeuron::FindDendron(int Threshold, DENDRON_T Type)
 // ----------------------------------------------------------------------------------------
 CDendron *CNeuron::FindDendron(DENDRON_T Type)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *link = dendrons_out.GetNext(pos);
+		CDendron *link = boutons.GetNext(pos);
 		if (link->type == Type)
 		{
 			return link;
@@ -84,10 +94,10 @@ CDendron *CNeuron::FindDendron(DENDRON_T Type)
 // ----------------------------------------------------------------------------------------
 CDendron *CNeuron::FindDendronOtherThan(NEURON_T Type)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *dendron = dendrons_out.GetNext(pos);
+		CDendron *dendron = boutons.GetNext(pos);
 		if (dendron->pToDendron->type != Type)
 		{
 			return dendron;
@@ -99,10 +109,10 @@ CDendron *CNeuron::FindDendronOtherThan(NEURON_T Type)
 // ----------------------------------------------------------------------------------------
 CDendron *CNeuron::FindDendronTo(int Location)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *dendron = dendrons_out.GetNext(pos);
+		CDendron *dendron = boutons.GetNext(pos);
 		if (dendron->pToDendron->location == Location)
 		{
 			return dendron;
@@ -129,10 +139,10 @@ void CNeuron::Activated()
 // ----------------------------------------------------------------------------------------
 void CNeuron::ActivateDendronsEqualTo(DENDRON_T Type, int Threshold, CMind *Mind)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *dendron = dendrons_out.GetNext(pos);
+		CDendron *dendron = boutons.GetNext(pos);
 		if ((dendron->type == Type) && (dendron->threshold == Threshold))
 		{
 			Mind->Fire(dendron);
@@ -143,10 +153,10 @@ void CNeuron::ActivateDendronsEqualTo(DENDRON_T Type, int Threshold, CMind *Mind
 // ----------------------------------------------------------------------------------------
 void CNeuron::ActivateDendronsOfType(DENDRON_T Type, CMind *Mind)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *dendron = dendrons_out.GetNext(pos);
+		CDendron *dendron = boutons.GetNext(pos);
 		if (dendron->type == Type)
 		{
 			Mind->Fire(dendron);
@@ -157,10 +167,10 @@ void CNeuron::ActivateDendronsOfType(DENDRON_T Type, CMind *Mind)
 // ----------------------------------------------------------------------------------------
 void CNeuron::ActivateDendronsNotToType(NEURON_T Type, CMind *Mind)
 {
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *dendron = dendrons_out.GetNext(pos);
+		CDendron *dendron = boutons.GetNext(pos);
 		if (dendron->pToDendron->type != Type)
 		{
 			Mind->Fire(dendron);
@@ -171,7 +181,7 @@ void CNeuron::ActivateDendronsNotToType(NEURON_T Type, CMind *Mind)
 // ----------------------------------------------------------------------------------------
 void CNeuron::GrowDendronTo(CNeuron *To, int Threshold, DENDRON_T Type)
 {
-	dendrons_out.AddTail(new CDendron(To, Threshold, Type));
+	boutons.AddTail(new CDendron(To, Threshold, Type));
 }
 
 // ----------------------------------------------------------------------------------------
@@ -201,12 +211,12 @@ CNeuron *CNeuron::NeuronAt(int Location, bool Add, NEURON_T Type)
 LPCTSTR CNeuron::ToString()
 {
 	static CString ret;
-	ret.Format(_T("%d,%d,%d,%d"), location, type, value, dendrons_out.GetCount());
+	ret.Format(_T("%d,%d,%d,%d"), location, type, value, boutons.GetCount());
 
-	POSITION pos = dendrons_out.GetHeadPosition();
+	POSITION pos = boutons.GetHeadPosition();
 	while (pos)
 	{
-		CDendron *link = dendrons_out.GetNext(pos);
+		CDendron *link = boutons.GetNext(pos);
 		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->pToDendron->location);
 	}
 
@@ -244,7 +254,17 @@ void CDendron::Activate()
 // ----------------------------------------------------------------------------------------
 void CDendron::GrowDendron(CNeuron *From, CNeuron *To, float Weight)
 {
-	GrowDendron(From->location, To->location, Weight);
+	if (From && To)
+	{
+		// Make sure there isn't one already
+		CDendron *d = NULL; // From->FindDendronTo(To->location);
+		if (!d)
+		{
+			d = new CDendron(From->location, To->location, Weight);
+			From->boutons.AddTail(d);
+			To->dendrites.AddTail(d);
+		}
+	}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -252,17 +272,7 @@ void CDendron::GrowDendron(int From, int To, float Weight)
 {
 	CNeuron *fN = CNeuron::NeuronAt(From);
 	CNeuron *tN = CNeuron::NeuronAt(To);
-	if (fN && tN)
-	{
-		// Make sure there isn't one already
-		CDendron *d = fN->FindDendronTo(To);
-		if (!d)
-		{
-			d = new CDendron(From, To, Weight);
-			fN->dendrons_out.AddTail(d);
-			tN->dendrons_in.AddTail(d);
-		}
-	}
+	GrowDendron(fN, tN, Weight);
 }
 
 // ----------------------------------------------------------------------------------------

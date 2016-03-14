@@ -5,6 +5,7 @@
 #pragma once
 #include "Mind.h"
 #include "afxwin.h"
+#include "NNTest.h"
 
 // CMind1Dlg dialog
 class CMind1Dlg : public CDialog
@@ -37,8 +38,9 @@ public:
 	afx_msg void OnTimer(UINT_PTR TimerID);
 
 	void MakeCharBM(LPCTSTR Char);
-	void TestBitmap();
 	void Refresh();
+	void TestBitmap();
+	int Train(TCHAR Ch);
 
 	// CMind theMind;
 	CMind theMind;
@@ -47,6 +49,7 @@ public:
 	CString output2;
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
+	CNeuralNet char_rec;
 	//CImage theImage;
 	//CStatic *thePic;
 	CStatic anImage;

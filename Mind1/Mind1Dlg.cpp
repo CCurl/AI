@@ -70,6 +70,21 @@ BOOL CMind1Dlg::OnInitDialog()
 
 void CMind1Dlg::TestBitmap()
 {
+}
+
+int CMind1Dlg::Train(TCHAR Ch)
+{
+	if (char_rec.NumLayers() == 0)
+	{
+		char_rec.mind = &theMind;
+		char_rec.root = NULL;
+		int inputs = 15 * 18;
+		char_rec.NumLayers(3);
+		char_rec.DefineLayer(0, inputs);
+		char_rec.DefineLayer(1, (inputs * 15) / 10);
+		char_rec.DefineLayer(2, 1);
+		char_rec.BuildConnections();
+	}
 	CBitmap bitMap;
 	bitMap.Attach(anImage.GetBitmap());
 
@@ -81,6 +96,7 @@ void CMind1Dlg::TestBitmap()
 	bm.bmBits = malloc(numBits);
 	DWORD num = bitMap.GetBitmapBits(numBits, bm.bmBits);
 
+	int nnum = 0;
 	CString tmp, line;
 	BYTE *theBits = (BYTE *)bm.bmBits;
 	BYTE *pBits = theBits;
@@ -93,12 +109,15 @@ void CMind1Dlg::TestBitmap()
 		int bitNum = 0;
 		while (bitNum < bm.bmWidth)
 		{
-			BYTE b = (data & 0x80);
-			char ch = (b != 0) ? '_' : '*';
-			line.AppendChar(ch);
+			BYTE bit = (data & 0x80);
 			data = data << 1;
-			++bitNum;
-			if (bitNum % 8 == 0)
+
+			double val = (bit) ? 0 : 1;
+			char_rec.SetInput(nnum++, val);
+
+			char ch = (bit) ? '_' : '*';
+			line.AppendChar(ch);
+			if ((++bitNum) % 8 == 0)
 			{
 				data = *(++pBits);
 				tmp.Append(line);
@@ -116,12 +135,16 @@ void CMind1Dlg::TestBitmap()
 
 	anImage.SetBitmap((HBITMAP)bitMap.Detach());
 	anImage.Invalidate();
+
+	char_rec.Go();
+
+	return 0;
 }
 
 void CMind1Dlg::MakeCharBM(LPCTSTR Char)
 {
 	CBitmap bitMap;
-	bitMap.CreateBitmap(16, 20, 1, 1, NULL);
+	bitMap.CreateBitmap(15, 18, 1, 1, NULL);
 	bitMap.DeleteTempMap();
 	//bitMap.Attach(anImage.GetBitmap());
 
@@ -145,7 +168,7 @@ void CMind1Dlg::MakeCharBM(LPCTSTR Char)
 
 	anImage.SetBitmap((HBITMAP)bitMap.Detach());
 	anImage.Invalidate();
-	TestBitmap();
+	Train(*Char);
 }
 // If you add a minimize button to your dialog, you will need the code below
 //  to draw the icon.  For MFC applications using the document/view model,

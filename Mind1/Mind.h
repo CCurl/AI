@@ -64,9 +64,9 @@ public:
 class CNeuron
 {
 public:
-	CNeuron() { type = NT_Unknown; location = 0; value = 0; }
-	CNeuron(NEURON_T Type) { type = Type; location = 0; value = 0; }
-	CNeuron(NEURON_T Type, int Loc) { type = Type; location = Loc; value = 0; }
+	CNeuron();
+	CNeuron(NEURON_T Type) : CNeuron() { type = Type; location = 0; value = 0; }
+	CNeuron(NEURON_T Type, int Loc) : CNeuron() { type = Type; location = Loc; value = 0; }
 	~CNeuron();
 
 	void GrowDendronTo(CNeuron *To, int Trigger, DENDRON_T Type);
@@ -87,6 +87,9 @@ public:
 	void ActivateDendronsGreaterThan(DENDRON_T Type, int Threshold, CMind *Mind) {}
 	void ActivateDendronsLessThan(DENDRON_T Type, int Threshold, CMind *Mind) {}
 
+	double Value() { return dVal; }
+	void Value(double Val) { dVal = Val; }
+
 	bool HasLinkTo(CNeuron *To) { return false; }
 
 	LPCTSTR ToString();
@@ -97,11 +100,15 @@ public:
 	bool activated;
 	NEURON_T type;
 
-	// This node's dendrons
-	CList<CDendron *> dendrons_out;
-	CList<CDendron *> dendrons_in;
+	// This node's connections
+	CList<CDendron *> boutons;		// going out
+	CList<CDendron *> dendrites;	// coming in
+
+private:
+	double dVal;
 
 	// Class statics ...
+public:
 	static CNeuron *AllocateNeuron(NEURON_T Type = NT_Unknown);
 	static CNeuron *NeuronAt(int Location, bool Add = false, NEURON_T Type = NT_Unknown);
 	static CNeuron *all_neurons[MEMORY_SIZE];

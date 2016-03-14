@@ -26,11 +26,19 @@ void CNNetLayer::BuildConnections(CNNetLayer *From)
 	if (From->neurons == NULL)
 	{
 		From->neurons = new CNeuron *[From->num_neurons];
+		for (int i = 0; i < From->num_neurons; i++)
+		{
+			From->neurons[i] = NULL;
+		}
 	}
 
 	if (this->neurons == NULL)
 	{
 		this->neurons = new CNeuron *[this->num_neurons];
+		for (int i = 0; i < this->num_neurons; i++)
+		{
+			this->neurons[i] = NULL;
+		}
 	}
 
 	for (int fi = 0; fi < From->num_neurons; fi++)
@@ -55,66 +63,26 @@ void CNNetLayer::BuildConnections(CNNetLayer *From)
 }
 
 // ----------------------------------------------------------------------------------------
-// ----------------------------------------------------------------------------------------
 // CNeuralNet
 // ----------------------------------------------------------------------------------------
 CNeuralNet::CNeuralNet()
 {
 	num_layers = 0;
-	layers = NULL;
+	for (int i = 0; i < NN_MAX_LAYERS; i++)
+	{
+			layers[i] = NULL;
+	}
 }
 
-CNeuralNet::CNeuralNet(int NumLayers)
+CNeuralNet::CNeuralNet(int NumLayers) 
+	: CNeuralNet()
 {
-	layers = NULL;
 	this->NumLayers(NumLayers);
 }
 
 CNeuralNet::~CNeuralNet()
 {
 	this->NumLayers(0);
-}
-
-// ----------------------------------------------------------------------------------------
-void CNeuralNet::NumLayers(int Value)
-{
-	// Free any current layers
-	if (layers)
-	{
-		for (int i = 0; i < num_layers; i++)
-		{
-			if (layers[i])
-			{
-				delete layers[i];
-				layers[i] = NULL;
-			}
-		}
-		delete[] layers;
-		layers = NULL;
-	}
-
-	num_layers = Value;
-	if (num_layers)
-	{
-		layers = new CNNetLayer *[num_layers];
-		for (int i = 0; i < num_layers; i++)
-		{
-			layers[i] = NULL;
-		}
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CNeuralNet::DefineLayer(int LayerNumber, int NumNeurons)
-{
-	if ((0 <= LayerNumber) && (LayerNumber < num_layers))
-	{
-		if (layers[LayerNumber])
-		{
-			delete layers[LayerNumber];
-		}
-		layers[LayerNumber] = new CNNetLayer(NumNeurons);
-	}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -129,4 +97,60 @@ void CNeuralNet::BuildConnections()
 			to->BuildConnections(from);
 		}
 	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuralNet::DefineLayer(int LayerNumber, int NumNeurons)
+{
+	if ((LayerNumber < 0) || (LayerNumber >= NN_MAX_LAYERS))
+	{
+		return;
+	}
+
+	if (num_layers <= LayerNumber)
+	{
+		num_layers = LayerNumber + 1;
+	}
+
+	if (layers[LayerNumber])
+	{
+		delete layers[LayerNumber];
+	}
+	layers[LayerNumber] = new CNNetLayer(NumNeurons);
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuralNet::Go()
+{
+	CNNetLayer *layer = layers[1];
+	if (!layer)
+		return;
+
+	// Free any current layers
+	for (int i = 0; i < layer->num_neurons; i++)
+	{
+		layer->NeuronAt(i)->Activate();
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuralNet::NumLayers(int Value)
+{
+	// Free any current layers
+	for (int i = 0; i < NN_MAX_LAYERS; i++)
+	{
+		if (layers[i])
+		{
+			delete layers[i];
+			layers[i] = NULL;
+		}
+	}
+
+	num_layers = Value;
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuralNet::SetInput(int Index, double Value)
+{
+	layers[0]->NeuronAt(Index)->Value(Value);
 }
