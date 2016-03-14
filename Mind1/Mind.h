@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StringUtils.h"
+#include "NeuralNet.h"
 
 #define FN_THEMIND "TheMind.txt"
 #define FN_CONCEPTS "Concepts.txt"
@@ -12,9 +13,9 @@
 typedef enum {
 	MindRoot = 0, 
 	// Systems first
-	TextSystem, ConceptSystem, ExecutiveSystem, 
+	TextSystem, ConceptSystem, ExecutiveSystem, VisionSystem,
 
-	TextNeuron, ConceptNeuron, ExecutiveNeuron,
+	TextNeuron, ConceptNeuron, ExecutiveNeuron, VisionNeuron,
 	NT_Unknown = 999
 } NEURON_T;
 
@@ -27,6 +28,7 @@ class CNeuron;
 class CConceptSystem;
 class CExecutiveSystem;
 class CTextSystem;
+class CVisionSystem;
 
 // ----------------------------------------------------------------------------------------
 // CDendron
@@ -37,18 +39,22 @@ public:
 	CDendron() { pToDendron = NULL; threshold = 0; type = DT_Unknown; }
 	CDendron(CNeuron *To, int Threshold, DENDRON_T Type) { pToDendron = To; threshold = Threshold; type = Type; }
 	CDendron(int From, int To, float Weight) { from = From;  to = To; weight = Weight; strength = 1; }
+
 	int from, to, strength;
 	float weight;
 
+	void Activate();
 	CNeuron *From(); // { return CNeuron::NeuronAt(from); }
 	CNeuron *To(); // { return CNeuron::NeuronAt(to); }
-	void Activate();
+	void Weight(float Value) { weight = Value; }
+	float Weight() { return weight; }
 
 	// deprecated
 	DENDRON_T type;
 	CNeuron *pToDendron;
 	int threshold;
 
+	static void GrowDendron(CNeuron *From, CNeuron *To, float Weight);
 	static void GrowDendron(int From, int To, float Weight);
 };
 

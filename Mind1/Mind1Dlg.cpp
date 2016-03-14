@@ -68,10 +68,59 @@ BOOL CMind1Dlg::OnInitDialog()
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
-void CMind1Dlg::MakeCharBM(LPCTSTR Char)
+void CMind1Dlg::TestBitmap()
 {
 	CBitmap bitMap;
 	bitMap.Attach(anImage.GetBitmap());
+
+	BITMAP bm;
+	bitMap.GetBitmap(&bm);
+
+	DWORD sz = bitMap.GetBitmapBits(0, NULL);
+	int numBits = bm.bmHeight*bm.bmWidthBytes;
+	bm.bmBits = malloc(numBits);
+	DWORD num = bitMap.GetBitmapBits(numBits, bm.bmBits);
+
+	CString tmp, line;
+	BYTE *theBits = (BYTE *)bm.bmBits;
+	BYTE *pBits = theBits;
+	for (int rowNum = 0; rowNum < bm.bmHeight; rowNum++)
+	{
+		line.Empty();
+		int offset = rowNum*bm.bmWidthBytes;
+		pBits = &theBits[offset];
+		BYTE data = *pBits;
+		int bitNum = 0;
+		while (bitNum < bm.bmWidth)
+		{
+			BYTE b = (data & 0x80);
+			char ch = (b != 0) ? '0' : '1';
+			line.AppendChar(ch);
+			data = data << 1;
+			++bitNum;
+			if (bitNum % 8 == 0)
+			{
+				data = *(++pBits);
+				tmp.Append(line);
+				line.Empty();
+			}
+		}
+		tmp.Append(line);
+		tmp.Append(_T("\n"));
+	}
+	ATLTRACE(_T("\n%s"), tmp);
+	free(bm.bmBits);
+
+	anImage.SetBitmap((HBITMAP)bitMap.Detach());
+	anImage.Invalidate();
+}
+
+void CMind1Dlg::MakeCharBM(LPCTSTR Char)
+{
+	CBitmap bitMap;
+	bitMap.CreateBitmap(16, 20, 1, 1, NULL);
+	bitMap.DeleteTempMap();
+	//bitMap.Attach(anImage.GetBitmap());
 
 	BITMAP bm;
 	bitMap.GetBitmap(&bm);
@@ -86,12 +135,14 @@ void CMind1Dlg::MakeCharBM(LPCTSTR Char)
 	HGDIOBJ old = memDC.SelectObject(&bitMap);
 	memDC.SetBkMode(OPAQUE);
 	memDC.FillSolidRect(&r, RGB(255, 255, 255));
-	memDC.TextOutW(2, 2, Char, 1);
+	memDC.TextOutW(0, 0, Char, 1);
 	memDC.SelectObject(old);
 	ReleaseDC(curDC);
+	memDC.DeleteDC();
 
 	anImage.SetBitmap((HBITMAP)bitMap.Detach());
 	anImage.Invalidate();
+	TestBitmap();
 }
 // If you add a minimize button to your dialog, you will need the code below
 //  to draw the icon.  For MFC applications using the document/view model,

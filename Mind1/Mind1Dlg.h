@@ -37,6 +37,7 @@ public:
 	afx_msg void OnTimer(UINT_PTR TimerID);
 
 	void MakeCharBM(LPCTSTR Char);
+	void TestBitmap();
 	void Refresh();
 
 	// CMind theMind;

@@ -242,6 +242,12 @@ void CDendron::Activate()
 }
 
 // ----------------------------------------------------------------------------------------
+void CDendron::GrowDendron(CNeuron *From, CNeuron *To, float Weight)
+{
+	GrowDendron(From->location, To->location, Weight);
+}
+
+// ----------------------------------------------------------------------------------------
 void CDendron::GrowDendron(int From, int To, float Weight)
 {
 	CNeuron *fN = CNeuron::NeuronAt(From);
