@@ -33,7 +33,6 @@ void CMind1Dlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Text(pDX, IDC_Output2, output2);
 	// DDX_Text(pDX, IDC_Thought, lastThought);
 	DDX_Control(pDX, IDC_STATIC_P, anImage);
-	DDX_Control(pDX, IDC_NetPic, netPic);
 }
 
 BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
@@ -143,39 +142,66 @@ int CMind1Dlg::Train(TCHAR Ch)
 	return 0;
 }
 
+void CMind1Dlg::DrawCircle(CClientDC& dc, int x, int y, int radius, CPen& pen)
+{
+	CPen *old = dc.SelectObject(&pen);
+	dc.MoveTo(x+radius, y);
+	dc.AngleArc(x, y, radius, 0, 360);
+	dc.SelectObject(old);
+}
+
+void CMind1Dlg::DrawLine(CClientDC& dc, int FromX, int FromY, int ToX, int ToY, CPen& pen)
+{
+	CPen *oldPen = dc.SelectObject(&pen);
+	if (FromX > 0)
+	{
+		dc.MoveTo(FromX, FromY);
+	}
+	dc.LineTo(ToX, ToY);
+	dc.SelectObject(oldPen);
+}
+
+void CMind1Dlg::DrawRectangle(CClientDC& dc, int top, int left, int right, int bottom, CPen& pen)
+{
+	CPen *oldPen = dc.SelectObject(&pen);
+	dc.MoveTo(left, top);
+	dc.LineTo(right, top);
+	dc.LineTo(right, bottom);
+	dc.LineTo(left, bottom);
+	dc.LineTo(left, top);
+	dc.SelectObject(oldPen);
+}
+
+void CMind1Dlg::WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF color)
+{
+	dc.SetTextColor(color);
+	dc.TextOutW(x, y, text, wcslen(text));
+}
+
 void CMind1Dlg::DrawNet()
 {
-	CBitmap bitMap;
-	bitMap.CreateBitmap(200, 200, 1, 24, NULL);
-	bitMap.DeleteTempMap();
-	//bitMap.Attach(anImage.GetBitmap());
+	CClientDC dc(this);
+	CRect client_r, r;
+	GetClientRect(&client_r);
 
-	BITMAP bm;
-	bitMap.GetBitmap(&bm);
+	r.left = 500; r.right = client_r.right - 20;
+	r.top = 20; r.bottom = client_r.bottom - 20;
 
-	RECT r;
-	r.top = r.left = 0;
-	r.right = bm.bmWidth;
-	r.bottom = bm.bmHeight;
+	CPen redPen(PS_SOLID, 4, RGB(150, 0, 0));
+	CPen grnPen(PS_SOLID, 20, RGB(0, 150, 0));
+	CPen bluPen(PS_SOLID, 2, RGB(0, 0, 150));
+	CPen blkPen(PS_SOLID, 1, RGB(0, 0, 0));
 
-	CBrush br(RGB(200,0,0));
-	CPen myPen(PS_SOLID, 3, RGB(0, 255, 0)), *oldPen;
-	CDC memDC, *curDC = GetDC();
-	memDC.CreateCompatibleDC(curDC);
-	HGDIOBJ old = memDC.SelectObject(&bitMap);
-	memDC.SetBkMode(OPAQUE);
-	memDC.FillSolidRect(&r, RGB(255, 255, 255));
-	memDC.TextOutW(0, 0, _T("Myyy"), 3);
-	oldPen = (CPen *)memDC.SelectObject(&myPen);
-	memDC.MoveTo(5, 5);
-	memDC.LineTo(22, 99);
-	memDC.SelectObject(oldPen);
-	memDC.SelectObject(old);
-	ReleaseDC(curDC);
-	memDC.DeleteDC();
+	int radius = 15, x = r.left + 100, y = r.top + 50;
 
-	netPic.SetBitmap((HBITMAP)bitMap.Detach());
-	netPic.Invalidate();
+	DrawRectangle(dc, r.top, r.left, r.right, r.bottom, blkPen);
+	DrawLine(dc, r.left, r.top, r.right, r.bottom, redPen);
+	DrawLine(dc, r.right, r.top, r.left, r.bottom, grnPen);
+	DrawCircle(dc, x, y, radius, bluPen);
+	DrawCircle(dc, x, y + 100, radius, blkPen);
+
+	WriteText(dc, x - radius, y + radius + 5, _T("Here"), RGB(233, 77, 9));
+	WriteText(dc, x - radius, y + 100 + radius + 5, _T("More"), RGB(77, 233, 9));
 }
 
 void CMind1Dlg::MakeCharBM(LPCTSTR Char)
@@ -232,30 +258,8 @@ void CMind1Dlg::OnPaint()
 	}
 	else
 	{
-		//CDialog::OnPaint();
-		//CPaintDC dc(this); // device context for painting
-		CClientDC dcLine(this);
-		CRect client_r, r;
-		GetClientRect(&client_r);
-		r.left = 550; r.right = client_r.right - 10;
-		r.top = 50; r.bottom = client_r.bottom - 10;
-		CPen myPen(PS_SOLID, 1, RGB(0, 0, 0)), *oldPen;
-		//dc.FillSolidRect(&r, RGB(255, 200, 100));
-		oldPen = (CPen *)dcLine.SelectObject(&myPen);
-		//dcLine.TextOutW(770, 100, _T("Myyy"), 4);
-		dcLine.MoveTo(r.left, r.top);
-		dcLine.LineTo(r.right, r.top);
-		dcLine.LineTo(r.right, r.bottom);
-		dcLine.LineTo(r.left, r.bottom);
-		dcLine.LineTo(r.left, r.top);
-		dcLine.SelectObject(oldPen);
-		myPen.Detach();
-		myPen.CreatePen(PS_SOLID, 3, RGB(200, 0, 0));
-		oldPen = (CPen *)dcLine.SelectObject(&myPen);
-		dcLine.MoveTo(r.left, r.top);
-		dcLine.LineTo(r.right, r.bottom);
-		dcLine.SelectObject(oldPen);
-		//Invalidate();
+		CDialog::OnPaint();
+		DrawNet();
 	}
 }
 

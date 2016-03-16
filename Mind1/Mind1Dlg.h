@@ -37,13 +37,16 @@ public:
 	afx_msg void OnBnClickedLoad();
 	afx_msg void OnTimer(UINT_PTR TimerID);
 
+	void DrawCircle(CClientDC& dc, int x, int y, int radius, CPen& pen);
+	void DrawLine(CClientDC& dc, int FromX, int FromY, int ToX, int ToY, CPen& pen);
+	void DrawRectangle(CClientDC& dc, int top, int left, int right, int bottom, CPen& pen);
+	void WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF color);
 	void DrawNet();
 	void MakeCharBM(LPCTSTR Char);
 	void Refresh();
 	void TestBitmap();
 	int Train(TCHAR Ch);
 
-	// CMind theMind;
 	CMind theMind;
 	CString theInfo;
 	CString output1;
@@ -51,8 +54,5 @@ public:
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
 	CNeuralNet char_rec;
-	//CImage theImage;
-	//CStatic *thePic;
 	CStatic anImage;
-	CStatic netPic;
 };
