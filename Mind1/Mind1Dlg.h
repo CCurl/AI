@@ -44,7 +44,7 @@ public:
 	void DrawNet();
 	void MakeCharBM(LPCTSTR Char);
 	void Refresh();
-	void TestBitmap();
+	void Test1();
 	int Train(TCHAR Ch);
 
 	CMind theMind;
@@ -54,5 +54,6 @@ public:
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
 	CNeuralNet char_rec;
+	CNeuralNet nn_binary;
 	CStatic anImage;
 };

@@ -65,12 +65,45 @@ BOOL CMind1Dlg::OnInitDialog()
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
 	DrawNet();
+	Test1();
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
-void CMind1Dlg::TestBitmap()
+void CMind1Dlg::Test1()
 {
+	// XOR
+	if (nn_binary.NumLayers() == 0)
+	{
+		nn_binary.mind = &theMind;
+		nn_binary.root = NULL;
+		nn_binary.NumLayers(3);
+		nn_binary.DefineLayer(0, 2);
+		nn_binary.DefineLayer(1, 5);
+		nn_binary.DefineLayer(2, 1);
+		nn_binary.BuildConnections();
+	}
+
+	CString thought;
+	double cumulative_err = 0;
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < 2; j++)
+		{
+			nn_binary.SetInput(0, i);
+			nn_binary.SetInput(1, j);
+			double actual = nn_binary.Go();
+			double expected = double(i^j);
+			double err = (expected - actual);
+			cumulative_err += (expected - actual);
+			thought.AppendFormat(_T("(%d,%d,%.2f,%.2f) "), i, j, actual, err);
+		}
+	}
+
+	thought.AppendFormat(_T("(%.2f) "), cumulative_err);
+	SetDlgItemText(IDC_Thought, thought);
+	//last_thought = lastThought;
+
 }
 
 int CMind1Dlg::Train(TCHAR Ch)
@@ -299,10 +332,12 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	static CString last_thought;
 	KillTimer(ThinkTimerID);
 
-	bool refresh = theMind.Think(lastThought);
+	bool refresh = false; // theMind.Think(lastThought);
 
-	SetDlgItemText(IDC_Thought, lastThought);
-	last_thought = lastThought;
+	Test1();
+	
+	//SetDlgItemText(IDC_Thought, lastThought);
+	//last_thought = lastThought;
 
 	//if (!theMind.text_system.last_output.IsEmpty())
 	//{

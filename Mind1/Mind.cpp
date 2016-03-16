@@ -166,13 +166,13 @@ CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 		{
 			if (Weight == 0)
 			{
-				//Weight = ((double)rand() / (double)RAND_MAX);
-				Weight = 1;
+				Weight = ((double)rand() / (double)RAND_MAX);
+				//Weight = 1;
 			}
 			d = new CDendrite(From->location, To->location, Weight);
-			//double b = (((double)rand() / (double)RAND_MAX));
-			//d->Bias(b);
-			d->Bias(1);
+			double b = (((double)rand() / (double)RAND_MAX));
+			d->Bias(b);
+			//d->Bias(1);
 			From->GrowBouton(d);
 			To->GrowDendrite(d);
 		}
