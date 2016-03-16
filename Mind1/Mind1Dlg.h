@@ -37,6 +37,7 @@ public:
 	afx_msg void OnBnClickedLoad();
 	afx_msg void OnTimer(UINT_PTR TimerID);
 
+	void DrawNet();
 	void MakeCharBM(LPCTSTR Char);
 	void Refresh();
 	void TestBitmap();
@@ -53,4 +54,5 @@ public:
 	//CImage theImage;
 	//CStatic *thePic;
 	CStatic anImage;
+	CStatic netPic;
 };

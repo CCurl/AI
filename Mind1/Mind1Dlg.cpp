@@ -33,6 +33,7 @@ void CMind1Dlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Text(pDX, IDC_Output2, output2);
 	// DDX_Text(pDX, IDC_Thought, lastThought);
 	DDX_Control(pDX, IDC_STATIC_P, anImage);
+	DDX_Control(pDX, IDC_NetPic, netPic);
 }
 
 BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
@@ -64,6 +65,7 @@ BOOL CMind1Dlg::OnInitDialog()
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	DrawNet();
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -81,7 +83,7 @@ int CMind1Dlg::Train(TCHAR Ch)
 		int inputs = 15 * 18;
 		char_rec.NumLayers(3);
 		char_rec.DefineLayer(0, inputs);
-		char_rec.DefineLayer(1, (inputs * 15) / 10);
+		char_rec.DefineLayer(1, (inputs * 10) / 10);
 		char_rec.DefineLayer(2, 1);
 		char_rec.BuildConnections();
 	}
@@ -141,6 +143,41 @@ int CMind1Dlg::Train(TCHAR Ch)
 	return 0;
 }
 
+void CMind1Dlg::DrawNet()
+{
+	CBitmap bitMap;
+	bitMap.CreateBitmap(200, 200, 1, 24, NULL);
+	bitMap.DeleteTempMap();
+	//bitMap.Attach(anImage.GetBitmap());
+
+	BITMAP bm;
+	bitMap.GetBitmap(&bm);
+
+	RECT r;
+	r.top = r.left = 0;
+	r.right = bm.bmWidth;
+	r.bottom = bm.bmHeight;
+
+	CBrush br(RGB(200,0,0));
+	CPen myPen(PS_SOLID, 3, RGB(0, 255, 0)), *oldPen;
+	CDC memDC, *curDC = GetDC();
+	memDC.CreateCompatibleDC(curDC);
+	HGDIOBJ old = memDC.SelectObject(&bitMap);
+	memDC.SetBkMode(OPAQUE);
+	memDC.FillSolidRect(&r, RGB(255, 255, 255));
+	memDC.TextOutW(0, 0, _T("Myyy"), 3);
+	oldPen = (CPen *)memDC.SelectObject(&myPen);
+	memDC.MoveTo(5, 5);
+	memDC.LineTo(22, 99);
+	memDC.SelectObject(oldPen);
+	memDC.SelectObject(old);
+	ReleaseDC(curDC);
+	memDC.DeleteDC();
+
+	netPic.SetBitmap((HBITMAP)bitMap.Detach());
+	netPic.Invalidate();
+}
+
 void CMind1Dlg::MakeCharBM(LPCTSTR Char)
 {
 	CBitmap bitMap;
@@ -195,11 +232,30 @@ void CMind1Dlg::OnPaint()
 	}
 	else
 	{
-		CDialog::OnPaint();
+		//CDialog::OnPaint();
 		//CPaintDC dc(this); // device context for painting
-		//CRect r;
-		//GetClientRect(&r);
-		//theImage.TransparentBlt(dc.m_hDC, 0, 0, r.Width(), r.Height(), RGB(255, 255, 255));
+		CClientDC dcLine(this);
+		CRect client_r, r;
+		GetClientRect(&client_r);
+		r.left = 550; r.right = client_r.right - 10;
+		r.top = 50; r.bottom = client_r.bottom - 10;
+		CPen myPen(PS_SOLID, 1, RGB(0, 0, 0)), *oldPen;
+		//dc.FillSolidRect(&r, RGB(255, 200, 100));
+		oldPen = (CPen *)dcLine.SelectObject(&myPen);
+		//dcLine.TextOutW(770, 100, _T("Myyy"), 4);
+		dcLine.MoveTo(r.left, r.top);
+		dcLine.LineTo(r.right, r.top);
+		dcLine.LineTo(r.right, r.bottom);
+		dcLine.LineTo(r.left, r.bottom);
+		dcLine.LineTo(r.left, r.top);
+		dcLine.SelectObject(oldPen);
+		myPen.Detach();
+		myPen.CreatePen(PS_SOLID, 3, RGB(200, 0, 0));
+		oldPen = (CPen *)dcLine.SelectObject(&myPen);
+		dcLine.MoveTo(r.left, r.top);
+		dcLine.LineTo(r.right, r.bottom);
+		dcLine.SelectObject(oldPen);
+		//Invalidate();
 	}
 }
 
@@ -216,7 +272,7 @@ void CMind1Dlg::OnBnClickedOk()
 
 	MakeCharBM(theInfo);
 
-	theMind.text_system.ReceiveInput(theInfo);
+	//theMind.text_system.ReceiveInput(theInfo);
 
 	theInfo.Empty();
 	GetDlgItem(IDC_Info)->SetWindowText(theInfo);

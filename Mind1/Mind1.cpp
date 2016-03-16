@@ -37,11 +37,11 @@ CMind1App theApp;
 BOOL CMind1App::InitInstance()
 {
 	// InitCommonControlsEx() is required on Windows XP if an application
-	// manifest specifies use of ComCtl32.dll version 6 or later pToDendron enable
+	// manifest specifies use of ComCtl32.dll version 6 or later pToDendrite enable
 	// visual styles.  Otherwise, any window creation will fail.
 	INITCOMMONCONTROLSEX InitCtrls;
 	InitCtrls.dwSize = sizeof(InitCtrls);
-	// Set this pToDendron include all the common control classes you want pToDendron use
+	// Set this pToDendrite include all the common control classes you want pToDendrite use
 	// in your application.
 	InitCtrls.dwICC = ICC_WIN95_CLASSES;
 	InitCommonControlsEx(&InitCtrls);
@@ -53,11 +53,11 @@ BOOL CMind1App::InitInstance()
 
 
 	// Standard initialization
-	// If you are not using these features and wish pToDendron reduce the size
+	// If you are not using these features and wish pToDendrite reduce the size
 	// of your final executable, you should remove from the following
 	// the specific initialization routines you do not need
 	// Change the registry key under which our settings are stored
-	// TODO: You should modify this string pToDendron be something appropriate
+	// TODO: You should modify this string pToDendrite be something appropriate
 	// such as the name of your company or organization
 	SetRegistryKey(_T("Local AppWizard-Generated Applications"));
 
@@ -66,12 +66,12 @@ BOOL CMind1App::InitInstance()
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)
 	{
-		// TODO: Place code here pToDendron handle when the dialog is
+		// TODO: Place code here pToDendrite handle when the dialog is
 		//  dismissed with OK
 	}
 	else if (nResponse == IDCANCEL)
 	{
-		// TODO: Place code here pToDendron handle when the dialog is
+		// TODO: Place code here pToDendrite handle when the dialog is
 		//  dismissed with Cancel
 	}
 	else if (nResponse == -1)

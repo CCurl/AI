@@ -9,6 +9,7 @@ CNNetLayer::CNNetLayer(int NumNeurons)
 {
 	num_neurons = NumNeurons;
 	neurons = NULL;
+	bias = 1;
 }
 
 
@@ -51,13 +52,18 @@ void CNNetLayer::BuildConnections(CNNetLayer *From)
 			{
 				From->neurons[fi] = CNeuron::AllocateNeuron();
 				from = From->NeuronAt(fi);
+				from->layer = From->layer_num;
+				from->offset = fi;
 			}
 			if (to == NULL)
 			{
 				this->neurons[ti] = CNeuron::AllocateNeuron();
 				to = this->NeuronAt(ti);
+				to->layer = this->layer_num;
+				to->offset = ti;
 			}
-			CDendron::GrowDendron(from, to, 1);
+			CDendrite *d = CDendrite::GrowDendrite(from, to);
+			d->Bias(this->bias);
 		}
 	}
 }
@@ -117,20 +123,34 @@ void CNeuralNet::DefineLayer(int LayerNumber, int NumNeurons)
 		delete layers[LayerNumber];
 	}
 	layers[LayerNumber] = new CNNetLayer(NumNeurons);
+	layers[LayerNumber]->layer_num = LayerNumber;
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuralNet::Go()
+double CNeuralNet::Go()
 {
-	CNNetLayer *layer = layers[1];
-	if (!layer)
-		return;
-
-	// Free any current layers
-	for (int i = 0; i < layer->num_neurons; i++)
+	// Clear out the output neurons
+	CNNetLayer *l = layers[num_layers - 1];
+	for (int i = 0; i < l->num_neurons; i++)
 	{
-		layer->NeuronAt(i)->Activate();
+		CNeuron *n = l->NeuronAt(i);
+		n->Value(0);
 	}
+
+	//int num = mind->WorkNeurons();
+	CNeuron *n;
+	for (int layer_num = 0; layer_num < num_layers; layer_num++)
+	{
+		l = layers[layer_num];
+		for (int i = 0; i < l->num_neurons; i++)
+		{
+			n = l->NeuronAt(i);
+			n->Activate();
+			//l->NeuronAt(i)->Activate();
+		}
+	}
+
+	return n->Value();
 }
 
 // ----------------------------------------------------------------------------------------
@@ -152,5 +172,5 @@ void CNeuralNet::NumLayers(int Value)
 // ----------------------------------------------------------------------------------------
 void CNeuralNet::SetInput(int Index, double Value)
 {
-	layers[0]->NeuronAt(Index)->Value(Value);
+	layers[0]->NeuronAt(Index)->Collect(Value);
 }

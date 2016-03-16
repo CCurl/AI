@@ -7,44 +7,38 @@ CNeuron *CNeuron::all_neurons[MEMORY_SIZE];
 int CNeuron::last_memory_location = 0;
 
 // ----------------------------------------------------------------------------------------
-// CNeuron
-// ----------------------------------------------------------------------------------------
-//int CNeuron::AddInput(CNeuron *Input)
-//{ 
-//	inputs.Add(Input);
-//	return inputs.GetSize(); 
-//}
-
-// ----------------------------------------------------------------------------------------
-//int CNeuron::AddOutput(CNeuron *Output)
-//{
-//	outputs.Add(Output);
-//	return outputs.GetSize();
-//}
-
-// ----------------------------------------------------------------------------------------
 CNeuron::CNeuron()
 {
-	type = NT_Unknown; 
 	location = 0; 
 	value = 0; 
-	dVal = 0; 
+	threshold = ((double)rand() / (double)RAND_MAX);
 	activated = false;
+}
+
+// ----------------------------------------------------------------------------------------
+CNeuron::CNeuron(int Loc)
+	: CNeuron()
+{
+	location = Loc;
 }
 
 // ----------------------------------------------------------------------------------------
 CNeuron::~CNeuron()
 {
+	// Destroy my boutons ...
 	while (boutons.GetCount())
 	{
-		CDendron *link = boutons.GetHead();
+		CDendrite *link = boutons.GetHead();
 		delete link;
 		boutons.RemoveHead();
 	}
+
+	// The dendrites will be destroyed by the neuron from whom they emit
+	dendrites.RemoveAll();
 }
 
 // ----------------------------------------------------------------------------------------
-CNeuron *CNeuron::AllocateNeuron(NEURON_T Type)
+CNeuron *CNeuron::AllocateNeuron()
 {
 	CNeuron *ret = NULL;
 
@@ -52,7 +46,7 @@ CNeuron *CNeuron::AllocateNeuron(NEURON_T Type)
 	{
 		if (all_neurons[last_memory_location] == NULL)
 		{
-			ret = new CNeuron(Type, last_memory_location);
+			ret = new CNeuron(last_memory_location);
 			all_neurons[last_memory_location] = ret;
 			break;
 		}
@@ -62,136 +56,54 @@ CNeuron *CNeuron::AllocateNeuron(NEURON_T Type)
 }
 
 // ----------------------------------------------------------------------------------------
-CDendron *CNeuron::FindDendron(int Threshold, DENDRON_T Type)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *link = boutons.GetNext(pos);
-		if ((link->threshold == Threshold) && (link->type == Type))
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CDendron *CNeuron::FindDendron(DENDRON_T Type)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *link = boutons.GetNext(pos);
-		if (link->type == Type)
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CDendron *CNeuron::FindDendronOtherThan(NEURON_T Type)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *dendron = boutons.GetNext(pos);
-		if (dendron->pToDendron->type != Type)
-		{
-			return dendron;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CDendron *CNeuron::FindDendronTo(int Location)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *dendron = boutons.GetNext(pos);
-		if (dendron->pToDendron->location == Location)
-		{
-			return dendron;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
 void CNeuron::Activate()
 {
-}
+	//if (this->layer > 0)
+	//{
+	//	value += 0.00001;	 // TEMP TESTING
+	//}
 
-// ----------------------------------------------------------------------------------------
-void CNeuron::Activated()
-{
-	if (!activated)
+	activated = false;
+	if (this->value > this->threshold)
 	{
-		activated = true;
-		CMind::ActivateNeuron(this);
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CNeuron::ActivateDendronsEqualTo(DENDRON_T Type, int Threshold, CMind *Mind)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *dendron = boutons.GetNext(pos);
-		if ((dendron->type == Type) && (dendron->threshold == Threshold))
+		POSITION pos = boutons.GetHeadPosition();
+		while (pos)
 		{
-			Mind->Fire(dendron);
+			boutons.GetNext(pos)->Activate();
 		}
 	}
-}
 
-// ----------------------------------------------------------------------------------------
-void CNeuron::ActivateDendronsOfType(DENDRON_T Type, CMind *Mind)
-{
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
+	if (boutons.GetCount() > 0)
 	{
-		CDendron *dendron = boutons.GetNext(pos);
-		if (dendron->type == Type)
-		{
-			Mind->Fire(dendron);
-		}
+		value = 0;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::ActivateDendronsNotToType(NEURON_T Type, CMind *Mind)
+void CNeuron::Collect(double Val)
 {
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *dendron = boutons.GetNext(pos);
-		if (dendron->pToDendron->type != Type)
-		{
-			Mind->Fire(dendron);
-		}
-	}
+	value += Val; 
+	//if ((value > threshold) && (!activated))
+	//{
+	//	if (this->layer > 0)
+	//	{
+	//		value += 0.0000001; // TEMP TESTING
+	//	}
+	//	activated = true;
+	//	CMind::ActivateNeuron(this);
+	//}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::GrowDendronTo(CNeuron *To, int Threshold, DENDRON_T Type)
+void CNeuron::GrowDendriteTo(CNeuron *To, double Weight)
 {
-	boutons.AddTail(new CDendron(To, Threshold, Type));
+	CDendrite *d = new CDendrite(this->location, To->location, Weight);
+	this->GrowBouton(d);
+	To->GrowDendrite(d);
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::GrowDendronTo(CNeuron *To, float Weight)
-{
-	CDendron::GrowDendron(this->location, To->location, Weight);
-}
-
-// ----------------------------------------------------------------------------------------
-CNeuron *CNeuron::NeuronAt(int Location, bool Add, NEURON_T Type)
+CNeuron *CNeuron::NeuronAt(int Location, bool Add)
 {
 	if ((Location < 0) || (Location >= MEMORY_SIZE))
 	{
@@ -201,7 +113,7 @@ CNeuron *CNeuron::NeuronAt(int Location, bool Add, NEURON_T Type)
 	CNeuron *neuron = all_neurons[Location];
 	if ((neuron == NULL) && Add)
 	{
-		neuron = new CNeuron(Type, Location);
+		neuron = new CNeuron(Location);
 		all_neurons[Location] = neuron;
 	}
 	return neuron;
@@ -211,68 +123,66 @@ CNeuron *CNeuron::NeuronAt(int Location, bool Add, NEURON_T Type)
 LPCTSTR CNeuron::ToString()
 {
 	static CString ret;
-	ret.Format(_T("%d,%d,%d,%d"), location, type, value, boutons.GetCount());
+	//ret.Format(_T("%d,%d,%d,%d"), location, type, value, boutons.GetCount());
 
-	POSITION pos = boutons.GetHeadPosition();
-	while (pos)
-	{
-		CDendron *link = boutons.GetNext(pos);
-		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->pToDendron->location);
-	}
+	//POSITION pos = boutons.GetHeadPosition();
+	//while (pos)
+	//{
+	//	CDendrite *link = boutons.GetNext(pos);
+	//	ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->pToDendrite->location);
+	//}
 
-	if (type == TextNeuron)
-	{
-		ret.AppendFormat(_T(",%c"), char(value));
-	}
 	return ret;
 }
 
 // ----------------------------------------------------------------------------------------
-// CDendron
+// CDendrite
 // ----------------------------------------------------------------------------------------
-void CDendron::Activate()
+void CDendrite::Activate()
 {
 	CNeuron *tN = CNeuron::NeuronAt(to);
 	if (tN)
 	{
-		// Tell the target that it has been activated. This will
-		// cause it to get picked up the next time the brain wakes up.
-		tN->Activated();
+		// Pass my weight and bias to the neuron.
+		// This causes it to activate itself should its threshold be exceeded.
 		strength++;
+		tN->Collect(Weight() * Bias());
 	}
 	else
 	{
 		strength = 0;
-		CNeuron *fN = CNeuron::NeuronAt(from);
-		if (fN)
-		{
-			// fN->PruneDendron(this);
-		}
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CDendron::GrowDendron(CNeuron *From, CNeuron *To, float Weight)
+CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 {
+	CDendrite *d = NULL; // From->FindDendriteTo(To->location);
 	if (From && To)
 	{
 		// Make sure there isn't one already
-		CDendron *d = NULL; // From->FindDendronTo(To->location);
 		if (!d)
 		{
-			d = new CDendron(From->location, To->location, Weight);
-			From->boutons.AddTail(d);
-			To->dendrites.AddTail(d);
+			if (Weight == 0)
+			{
+				Weight = ((double)rand() / (double)RAND_MAX);
+			}
+			d = new CDendrite(From->location, To->location, Weight);
+			double b = (((double)rand() / (double)RAND_MAX));
+			d->Bias(b);
+			From->GrowBouton(d);
+			To->GrowDendrite(d);
 		}
 	}
+	return d;
 }
 
 // ----------------------------------------------------------------------------------------
-void CDendron::GrowDendron(int From, int To, float Weight)
+CDendrite *CDendrite::GrowDendrite(int From, int To, double Weight)
 {
 	CNeuron *fN = CNeuron::NeuronAt(From);
 	CNeuron *tN = CNeuron::NeuronAt(To);
-	GrowDendron(fN, tN, Weight);
+	return GrowDendrite(fN, tN, Weight);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -287,26 +197,12 @@ CMind::CMind()
 	{
 		CNeuron::all_neurons[i] = NULL;
 	}
-
-	memory_root = NeuronAt(MindRoot, true, MindRoot);
-
-	text_system.root = NeuronAt(TextSystem, true, TextSystem);
-	text_system.mind = this;
-
-	concept_system.root = NeuronAt(ConceptSystem, true, ConceptSystem);
-	concept_system.mind = this;
-
-	executive_system.root = NeuronAt(ExecutiveSystem, true, ExecutiveSystem);
-	executive_system.mind = this;
-
-	memory_root->GrowDendronTo(NeuronAt(ConceptSystem), 0, DT_Wakeup);
-	memory_root->GrowDendronTo(NeuronAt(ExecutiveSystem), 0, DT_Wakeup);
-	memory_root->GrowDendronTo(NeuronAt(TextSystem), 0, DT_Wakeup);
 }
 
 // ----------------------------------------------------------------------------------------
 CMind::~CMind()
 {
+	srand(GetTickCount());
 	for (int i = 0; i < MEMORY_SIZE; i++)
 	{
 		if (CNeuron::all_neurons[i])
@@ -335,7 +231,7 @@ int CMind::Load(char *Filename)
 			CString *w = words.GetFirst();
 			while (w)
 			{
-				text_system.LearnThis(*w);
+				//text_system.LearnThis(*w);
 				w = words.GetNext();
 			}
 			// int id = words.GetIntAt(0);
@@ -351,9 +247,9 @@ int CMind::Load(char *Filename)
 }
 
 // ----------------------------------------------------------------------------------------
-CNeuron *CMind::NeuronAt(int Location, bool Add, NEURON_T Type)
+CNeuron *CMind::NeuronAt(int Location, bool Add)
 {
-	return CNeuron::NeuronAt(Location, Add, Type);
+	return CNeuron::NeuronAt(Location, Add);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -380,49 +276,22 @@ int CMind::Save()
 }
 
 // ----------------------------------------------------------------------------------------
-void CMind::FireOne(CDendron *Link)
+int CMind::WorkNeurons()
 {
-	switch (Link->type)
+	int num = 0;
+	while (activated.GetCount() > 0)
 	{
-	case DT_Wakeup:
-		text_system.Fire(Link);
-		concept_system.Fire(Link);
-		executive_system.Fire(Link);
-		break;
-
-	case DT_TextIn:
-	case DT_TextOut:
-		text_system.Fire(Link);
-		break;
-
-	case DT_Concept:
-		concept_system.Fire(Link);
-		break;
-
-	default:
-		break;
+		activated.RemoveHead()->Activate();
+		++num;
 	}
+	return num;
 }
 
 // ----------------------------------------------------------------------------------------
 bool CMind::Think(CString& Output)
 {
-	const int MAX_CYCLES_PER_WAKEUP = 100;
-	int cycle = 0;
-
-	// Send out a "wakeup" event
-	CDendron wakeup_link((CNeuron *)memory_root, 0, DT_Wakeup);
-	FireOne(&wakeup_link);
-
-	while (fire_queue.GetCount() > 0)
-	{
-		FireOne(fire_queue.RemoveHead());
-
-		if (++cycle > MAX_CYCLES_PER_WAKEUP)
-		{
-			break;
-		}
-	}
+	//const int MAX_CYCLES_PER_WAKEUP = 100;
+	//int cycle = 0;
 
 	// Activation may cause neurons in the next layer to be activated.
 	// If we process those before making it through all the neurons in the current
@@ -434,11 +303,11 @@ bool CMind::Think(CString& Output)
 		activated.RemoveHead()->Activate();
 	}
 
-	if (!text_system.last_output.IsEmpty())
-	{
-		Output = text_system.last_output;
-		text_system.last_output.Empty();
-	}
+	//if (!text_system.last_output.IsEmpty())
+	//{
+	//	Output = text_system.last_output;
+	//	text_system.last_output.Empty();
+	//}
 
 	return false;
 }
@@ -446,35 +315,35 @@ bool CMind::Think(CString& Output)
 // ----------------------------------------------------------------------------------------
 // This is where the rubber meets the road.
 // ----------------------------------------------------------------------------------------
-void CConceptSystem::Fire(CDendron *Link)
+void CConceptSystem::Fire(CDendrite *Link)
 {
-	switch (Link->type)
-	{
-	case DT_Wakeup:
-		break;
+	//switch (Link->type)
+	//{
+	//case DT_Wakeup:
+	//	break;
 
-	case DT_Concept:
-	{
-		// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
-		CNeuron *node = mind->NeuronAt(Link->pToDendron->location - 1);
-		while (node)
-		{
-			if (node->type == ConceptNeuron)
-			{
-				node->ActivateDendronsOfType(DT_TextOut, mind);
-				break;
-			}
-			node = mind->NeuronAt(node->location - 1);
-		}
+	//case DT_Concept:
+	//{
+	//	// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
+	//	CNeuron *node = mind->NeuronAt(Link->pToDendrite->location - 1);
+	//	while (node)
+	//	{
+	//		if (node->type == ConceptNeuron)
+	//		{
+	//			node->ActivateDendritesOfType(DT_TextOut, mind);
+	//			break;
+	//		}
+	//		node = mind->NeuronAt(node->location - 1);
+	//	}
 
-		Link->pToDendron->ActivateDendronsOfType(DT_TextOut, mind);
-		// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
-	}
-	break;
+	//	Link->pToDendrite->ActivateDendritesOfType(DT_TextOut, mind);
+	//	// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
+	//}
+	//break;
 
-	default:
-		break;
-	}
+	//default:
+	//	break;
+	//}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -484,126 +353,126 @@ void CConceptSystem::Fire(CDendron *Link)
 // ----------------------------------------------------------------------------------------
 // Builds a text string by walking backwards through the pathway.
 // ----------------------------------------------------------------------------------------
-LPCTSTR CTextSystem::BuildOutput(CNeuron *PathEnd)
-{
-	CString output;
+//LPCTSTR CTextSystem::BuildOutput(CNeuron *PathEnd)
+//{
+//	CString output;
 
-	// Handle the case where the node is not a TextNeuron.
-	if ((PathEnd) && (PathEnd->type != TextNeuron))
-	{
-		CDendron *link = PathEnd->FindDendron(DT_TextOut);
-		PathEnd = link ? link->pToDendron : NULL;
-	}
+	//// Handle the case where the node is not a TextNeuron.
+	//if ((PathEnd) && (PathEnd->type != TextNeuron))
+	//{
+	//	CDendrite *link = PathEnd->FindDendrite(DT_TextOut);
+	//	PathEnd = link ? link->pToDendrite : NULL;
+	//}
 
-	while ((PathEnd) && (PathEnd->type == TextNeuron))
-	{
-		output.AppendChar(TCHAR(PathEnd->value));
-		CDendron *link = PathEnd->FindDendron(DT_TextOut);
-		PathEnd = link ? link->pToDendron : NULL;
-	}
+	//while ((PathEnd) && (PathEnd->type == TextNeuron))
+	//{
+	//	output.AppendChar(TCHAR(PathEnd->value));
+	//	CDendrite *link = PathEnd->FindDendrite(DT_TextOut);
+	//	PathEnd = link ? link->pToDendrite : NULL;
+	//}
 
-	if (!last_output.IsEmpty())
-	{
-		last_output.AppendChar(' ');
-	}
-	last_output.Append(output.MakeReverse());
+	//if (!last_output.IsEmpty())
+	//{
+	//	last_output.AppendChar(' ');
+	//}
+	//last_output.Append(output.MakeReverse());
 
-	return last_output;
-}
+//	return output;
+//}
 
 // ----------------------------------------------------------------------------------------
 // This is where the rubber meets the road.
 // ----------------------------------------------------------------------------------------
-void CTextSystem::Fire(CDendron *Link)
-{
-	switch (Link->type)
-	{
-	case DT_Wakeup:
-		if (input_queue.GetCount() > 0)
-		{
-			CString input = input_queue.RemoveHead();
-			LookAt(input);
-		}
-		break;
+//void CTextSystem::Fire(CDendrite *Link)
+//{
+	//switch (Link->type)
+	//{
+	//case DT_Wakeup:
+	//	if (input_queue.GetCount() > 0)
+	//	{
+	//		CString input = input_queue.RemoveHead();
+	//		LookAt(input);
+	//	}
+	//	break;
 
-	case DT_TextIn:
-	{
-		TCHAR ch = NextChar();
-		if (ch == NULL)
-		{
-			Link->pToDendron->ActivateDendronsNotToType(TextNeuron, mind);
-		}
-		else
-		{
-			Link->pToDendron->ActivateDendronsEqualTo(DT_TextIn, ch, mind);
-		}
-	}
-		break;
+	//case DT_TextIn:
+	//{
+	//	TCHAR ch = NextChar();
+	//	if (ch == NULL)
+	//	{
+	//		Link->pToDendrite->ActivateDendritesNotToType(TextNeuron, mind);
+	//	}
+	//	else
+	//	{
+	//		Link->pToDendrite->ActivateDendritesEqualTo(DT_TextIn, ch, mind);
+	//	}
+	//}
+	//	break;
 
-	case DT_TextOut:
-		BuildOutput(Link->pToDendron);
-		break;
+	//case DT_TextOut:
+	//	BuildOutput(Link->pToDendrite);
+	//	break;
 
-	default:
-		break;
-	}
-}
+	//default:
+	//	break;
+	//}
+//}
 
 // ----------------------------------------------------------------------------------------
-// Learns the text by building a pathway pToDendron it.
+// Learns the text by building a pathway pToDendrite it.
 // ----------------------------------------------------------------------------------------
-void CTextSystem::LearnThis(LPCTSTR Input, CNeuron *Thing)
-{
-	if (*Input == NULL)
-		return;
-
-	CNeuron *cur = root;
-	last_received = Input;
-
-	while (*Input)
-	{
-		int ch = *(Input++);
-		CDendron *link = cur->FindDendron(ch, DT_TextIn);
-		CNeuron *pToDendron = link ? link->pToDendron : NULL;
-		if (!pToDendron)
-		{
-			pToDendron = CNeuron::AllocateNeuron(TextNeuron);
-			pToDendron->value = ch;
-			cur->GrowDendronTo(pToDendron, ch, DT_TextIn);
-			pToDendron->GrowDendronTo(cur, cur->value, DT_TextOut);
-		}
-		cur = pToDendron;
-	}
-
-	// At this point, cur is where (Thing) should go ...
-	if (Thing == NULL)
-	{
-		// No "Thing" was passed in, so create a new one ...
-		CDendron *link = cur->FindDendronOtherThan(TextNeuron);
-		Thing = link ? link->pToDendron : NULL;
-		if (Thing == NULL)
-		{
-			Thing = CNeuron::AllocateNeuron(ConceptNeuron);
-		}
-	}
-
-	// See if we already know about it ...
-	if (cur->FindDendronTo(Thing->location) == NULL)
-	{
-		cur->GrowDendronTo(Thing, 0, DT_Concept);
-		Thing->GrowDendronTo(cur, cur->value, DT_TextOut);
-	}
-}
+//void CTextSystem::LearnThis(LPCTSTR Input, CNeuron *Thing)
+//{
+//	if (*Input == NULL)
+//		return;
+//
+//	CNeuron *cur = root;
+//	last_received = Input;
+//
+//	while (*Input)
+//	{
+//		int ch = *(Input++);
+//		CDendrite *link = cur->FindDendrite(ch, DT_TextIn);
+//		CNeuron *pToDendrite = link ? link->pToDendrite : NULL;
+//		if (!pToDendrite)
+//		{
+//			pToDendrite = CNeuron::AllocateNeuron(TextNeuron);
+//			pToDendrite->value = ch;
+//			cur->GrowDendriteTo(pToDendrite, ch, DT_TextIn);
+//			pToDendrite->GrowDendriteTo(cur, cur->value, DT_TextOut);
+//		}
+//		cur = pToDendrite;
+//	}
+//
+//	// At this point, cur is where (Thing) should go ...
+//	if (Thing == NULL)
+//	{
+//		// No "Thing" was passed in, so create a new one ...
+//		CDendrite *link = cur->FindDendriteOtherThan(TextNeuron);
+//		Thing = link ? link->pToDendrite : NULL;
+//		if (Thing == NULL)
+//		{
+//			Thing = CNeuron::AllocateNeuron(ConceptNeuron);
+//		}
+//	}
+//
+//	// See if we already know about it ...
+//	if (cur->FindDendriteTo(Thing->location) == NULL)
+//	{
+//		cur->GrowDendriteTo(Thing, 0, DT_Concept);
+//		Thing->GrowDendriteTo(cur, cur->value, DT_TextOut);
+//	}
+//}
 
 // ----------------------------------------------------------------------------------------
 // Handles input provided.
 // If recognized, fires the output nodes.
 // ----------------------------------------------------------------------------------------
-void CTextSystem::LookAt(LPCTSTR Input)
-{
-	last_received = Input;
-	cur_offset = 0;
-	TCHAR ch = NextChar();
-
-	root->ActivateDendronsEqualTo(DT_TextIn, ch, mind);
-}
+//void CTextSystem::LookAt(LPCTSTR Input)
+//{
+//	last_received = Input;
+//	cur_offset = 0;
+//	TCHAR ch = NextChar();
+//
+//	root->ActivateDendritesEqualTo(DT_TextIn, ch, mind);
+//}
