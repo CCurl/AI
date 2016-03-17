@@ -34,6 +34,7 @@ public:
 	CMind *mind;
 	CNeuron *root;
 
+	void AdjustWeights(double ErrPct);
 	void Bias(int Layer, double Value) { biases[Layer] = Value; }
 	double Bias(int Layer) { return biases[Layer]; }
 	void BuildConnections();

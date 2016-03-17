@@ -23,8 +23,8 @@ class CVisionSystem;
 class CDendrite
 {
 public:
-	CDendrite() { from = 0;  to = 0; weight = 1; strength = 0; bias = 1; }
-	CDendrite(int From, int To, double Weight) { from = From;  to = To; weight = Weight; strength = 0; bias = 1; }
+	CDendrite() { from = 0;  to = 0; weight = 1; strength = 0; bias = 1; activated = false; }
+	CDendrite(int From, int To, double Weight) { from = From;  to = To; weight = Weight; strength = 0; bias = 1; activated = false; }
 
 	int from, to, strength;
 
@@ -35,8 +35,10 @@ public:
 	CNeuron *To(); // { return CNeuron::NeuronAt(to); }
 	double Weight() { return weight; }
 	void Weight(double Value) { weight = Value; }
+	void AdjustWeight(double ErrPct);
 
 private:
+	bool activated;
 	double weight;
 	double bias;
 
@@ -56,6 +58,7 @@ public:
 	~CNeuron();
 
 	void Activate();
+	void AdjustWeights(double ErrPct);
 	void GrowDendriteTo(CNeuron *To, double Weight = 0);
 	void GrowBouton(CDendrite *D) { boutons.AddTail(D); }
 	void GrowDendrite(CDendrite *D) { dendrites.AddTail(D); }

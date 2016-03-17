@@ -94,9 +94,17 @@ void CMind1Dlg::Test1()
 			nn_binary.SetInput(1, j);
 			double actual = nn_binary.Go();
 			double expected = double(i^j);
-			double err = (expected - actual);
-			cumulative_err += (expected - actual);
-			thought.AppendFormat(_T("(%d,%d,%.2f,%.2f) "), i, j, actual, err);
+			double diff = abs(expected - actual);
+			double pct = (expected != 0) ? pct = diff / expected : .5;
+			pct *= 0.5;
+			pct = 0.05;
+			cumulative_err += (diff);
+			if (expected < actual)
+			{
+				pct = -pct;
+			}
+			nn_binary.AdjustWeights(pct);
+			thought.AppendFormat(_T("(%d,%d,%.0f,%.4f,%.4f) "), i, j, expected, actual, diff);
 		}
 	}
 
@@ -218,7 +226,7 @@ void CMind1Dlg::DrawNet()
 	GetClientRect(&client_r);
 
 	r.left = 500; r.right = client_r.right - 20;
-	r.top = 20; r.bottom = client_r.bottom - 20;
+	r.top = 20; r.bottom = client_r.bottom - 90;
 
 	CPen redPen(PS_SOLID, 4, RGB(150, 0, 0));
 	CPen grnPen(PS_SOLID, 20, RGB(0, 150, 0));

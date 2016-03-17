@@ -64,8 +64,8 @@ void CNeuron::Activate()
 	//	value += 0.00001;	 // TEMP TESTING
 	//}
 
-	activated = false;
-	if (this->value > this->threshold)
+	activated = true; // (this->value > this->threshold);
+	if (activated)
 	{
 		POSITION pos = boutons.GetHeadPosition();
 		while (pos)
@@ -73,8 +73,26 @@ void CNeuron::Activate()
 			boutons.GetNext(pos)->Activate();
 		}
 	}
+}
 
-	if (boutons.GetCount() > 0)
+// ----------------------------------------------------------------------------------------
+void CNeuron::AdjustWeights(double ErrPct)
+{
+	//activated = true;
+	if (activated)
+	{
+		threshold -= (ErrPct/2);
+		activated = false;
+		POSITION pos = dendrites.GetHeadPosition();
+		while (pos)
+		{
+			CDendrite *d = dendrites.GetNext(pos);
+			d->AdjustWeight(ErrPct);
+			// dendrites.GetNext(pos)->AdjustWeight(ErrPct);
+		}
+	}
+
+	if (boutons.GetHeadPosition() != NULL)
 	{
 		value = 0;
 	}
@@ -83,16 +101,9 @@ void CNeuron::Activate()
 // ----------------------------------------------------------------------------------------
 void CNeuron::Collect(double Val)
 {
-	value += Val; 
-	//if ((value > threshold) && (!activated))
-	//{
-	//	if (this->layer > 0)
-	//	{
-	//		value += 0.0000001; // TEMP TESTING
-	//	}
-	//	activated = true;
-	//	CMind::ActivateNeuron(this);
-	//}
+	value += Val;
+	// We can't fire here because a later negative collection event may lower our
+	// value, putting us below the threshold.
 }
 
 // ----------------------------------------------------------------------------------------
@@ -147,11 +158,22 @@ void CDendrite::Activate()
 		// Pass my weight and bias to the neuron.
 		// This causes it to activate itself should its threshold be exceeded.
 		strength++;
-		tN->Collect(Weight() * Bias());
+		tN->Collect(weight * bias);
+		activated = true;
 	}
 	else
 	{
 		strength = 0;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CDendrite::AdjustWeight(double ErrPct)
+{
+	if (activated)
+	{
+		activated = false;
+		weight += ErrPct; // (weight*ErrPct);
 	}
 }
 

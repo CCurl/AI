@@ -127,6 +127,9 @@ void CNeuralNet::DefineLayer(int LayerNumber, int NumNeurons)
 }
 
 // ----------------------------------------------------------------------------------------
+// Returns the value of the last neuron in the output layer
+// This works out nicely when there is only one output neuron
+// ----------------------------------------------------------------------------------------
 double CNeuralNet::Go()
 {
 	// Clear out the output neurons
@@ -137,8 +140,7 @@ double CNeuralNet::Go()
 		n->Value(0);
 	}
 
-	//int num = mind->WorkNeurons();
-	CNeuron *n;
+	CNeuron *n = NULL;
 	for (int layer_num = 0; layer_num < num_layers; layer_num++)
 	{
 		l = layers[layer_num];
@@ -146,7 +148,6 @@ double CNeuralNet::Go()
 		{
 			n = l->NeuronAt(i);
 			n->Activate();
-			//l->NeuronAt(i)->Activate();
 		}
 	}
 
@@ -174,3 +175,21 @@ void CNeuralNet::SetInput(int Index, double Value)
 {
 	layers[0]->NeuronAt(Index)->Collect(Value);
 }
+
+// ----------------------------------------------------------------------------------------
+void CNeuralNet::AdjustWeights(double ErrPct)
+{
+	// This works backwards through the layers
+	CNNetLayer *l = NULL;
+	CNeuron *n;
+	for (int layer_num = num_layers - 1; layer_num >= 0; layer_num--)
+	{
+		l = layers[layer_num];
+		for (int i = 0; i < l->num_neurons; i++)
+		{
+			n = l->NeuronAt(i);
+			n->AdjustWeights(ErrPct);
+		}
+	}
+}
+
