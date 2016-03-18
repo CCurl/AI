@@ -28,14 +28,13 @@ public:
 
 	int from, to, strength;
 
-	void Activate();
+	void Propagate();
 	void Bias(double Value) { bias = Value; }
 	double Bias() { return bias; }
-	CNeuron *From(); // { return CNeuron::NeuronAt(from); }
-	CNeuron *To(); // { return CNeuron::NeuronAt(to); }
+	CNeuron *From();
+	CNeuron *To();
 	double Weight() { return weight; }
 	void Weight(double Value) { weight = Value; }
-	void AdjustWeight(double ErrPct);
 
 private:
 	bool activated;
@@ -59,27 +58,28 @@ public:
 
 	void Activate();
 	void AdjustWeights(double ErrPct);
+	void CollectInputs();
+	double ErrorTerm() { return errorTerm; }
 	void GrowDendriteTo(CNeuron *To, double Weight = 0);
 	void GrowBouton(CDendrite *D) { boutons.AddTail(D); }
 	void GrowDendrite(CDendrite *D) { dendrites.AddTail(D); }
-	void Collect(double Val);
-	double Threshold() { return threshold; }
-	void Threshold(double Val) { threshold = Val; }
 	LPCTSTR ToString();
-	double Value() { return value; }
-	void Value(double Val) { value = Val; }
+	double Input() { return input; }
+	void Input(double Val) { input = Val; }
+	double Output() { return output; }
+	void Output(double Val) { output = Val; }
 
 	int location;
 	int layer, offset;
 	bool activated;
+	double learning_rate;
 
 	// This node's connections
-
-private:
-	double threshold;
-	double value;
 	CList<CDendrite *> boutons;		// going out
 	CList<CDendrite *> dendrites;	// coming in
+
+private:
+	double input, output, errorTerm;
 
 	// Class statics ...
 public:

@@ -43,6 +43,7 @@ BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
 	ON_BN_CLICKED(IDCANCEL, &CMind1Dlg::OnBnClickedCancel)
 	ON_BN_CLICKED(IDC_Save, &CMind1Dlg::OnBnClickedSave)
 	ON_BN_CLICKED(IDC_Load, &CMind1Dlg::OnBnClickedLoad)
+	ON_BN_CLICKED(IDC_Step, &CMind1Dlg::OnClick_Step)
 END_MESSAGE_MAP()
 
 
@@ -64,15 +65,7 @@ BOOL CMind1Dlg::OnInitDialog()
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	SetTimer(ThinkTimerID, ThinkDelay, NULL);
-	DrawNet();
-	Test1();
 
-	return TRUE;  // return TRUE  unless you set the focus to a control
-}
-
-void CMind1Dlg::Test1()
-{
-	// XOR
 	if (nn_binary.NumLayers() == 0)
 	{
 		nn_binary.mind = &theMind;
@@ -82,36 +75,66 @@ void CMind1Dlg::Test1()
 		nn_binary.DefineLayer(1, 5);
 		nn_binary.DefineLayer(2, 1);
 		nn_binary.BuildConnections();
+		DrawNet(1);
+		DrawNet(2);
 	}
 
-	CString thought;
+
+	return TRUE;  // return TRUE  unless you set the focus to a control
+}
+
+void CMind1Dlg::Test1()
+{
+	// XOR
+	CString thought, strIn1, strIn2;
+
+	GetDlgItemText(IDC_IN1, strIn1);
+	GetDlgItemText(IDC_IN2, strIn2);
+	int in1 = _wtol(strIn1);
+	int in2 = _wtol(strIn2);
+	int tot = in1 * 2 + in2;
+
+	tot = (tot + 1) % 4;
+	in2 = tot % 2;
+	in1 = tot >> 1;
+
 	double cumulative_err = 0;
-	for (int i = 0; i < 2; i++)
-	{
-		for (int j = 0; j < 2; j++)
-		{
-			nn_binary.SetInput(0, i);
-			nn_binary.SetInput(1, j);
-			double actual = nn_binary.Go();
-			double expected = double(i^j);
-			double diff = abs(expected - actual);
-			double pct = (expected != 0) ? pct = diff / expected : .5;
-			pct *= 0.5;
-			pct = 0.05;
-			cumulative_err += (diff);
-			if (expected < actual)
-			{
-				pct = -pct;
-			}
-			nn_binary.AdjustWeights(pct);
-			thought.AppendFormat(_T("(%d,%d,%.0f,%.4f,%.4f) "), i, j, expected, actual, diff);
-		}
-	}
+	nn_binary.SetInput(0, in1);
+	nn_binary.SetInput(1, in2);
+
+	double actual = nn_binary.Go();
+	double desired = double(in1^in2);
+	double diff = desired - actual;
+	cumulative_err += (diff);
+	nn_binary.AdjustWeights(desired);
+
+	strIn1.Format(_T("%d"), in1);
+	strIn2.Format(_T("%d"), in2);
+	SetDlgItemText(IDC_IN1, strIn1);
+	SetDlgItemText(IDC_IN2, strIn2);
+
+	//for (int i = 0; i < 2; i++)
+	//{
+	//	for (int j = 0; j < 2; j++)
+	//	{
+	//		nn_binary.SetInput(0, i);
+	//		nn_binary.SetInput(1, j);
+	//		double actual = nn_binary.Go();
+	//		double expected = double(i^j);
+	//		double diff = expected - actual;
+	//		cumulative_err += (diff);
+	//		nn_binary.AdjustWeights(diff);
+	//		thought.AppendFormat(_T("(%d,%d,%.0f,%.4f,%.4f) "), i, j, expected, actual, diff);
+	//	}
+	//}
 
 	thought.AppendFormat(_T("(%.2f) "), cumulative_err);
 	SetDlgItemText(IDC_Thought, thought);
-	//last_thought = lastThought;
 
+	strIn2.Format(_T("%.2f"), desired);
+	SetDlgItemText(IDC_EXPECTED, strIn2);
+
+	DrawNet(2);
 }
 
 int CMind1Dlg::Train(TCHAR Ch)
@@ -178,7 +201,7 @@ int CMind1Dlg::Train(TCHAR Ch)
 	anImage.SetBitmap((HBITMAP)bitMap.Detach());
 	anImage.Invalidate();
 
-	char_rec.Go();
+	//char_rec.Go();
 
 	return 0;
 }
@@ -219,30 +242,73 @@ void CMind1Dlg::WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF co
 	dc.TextOutW(x, y, text, wcslen(text));
 }
 
-void CMind1Dlg::DrawNet()
+void CMind1Dlg::DrawNet(int Which)
 {
 	CClientDC dc(this);
 	CRect client_r, r;
 	GetClientRect(&client_r);
 
-	r.left = 500; r.right = client_r.right - 20;
-	r.top = 20; r.bottom = client_r.bottom - 90;
-
-	CPen redPen(PS_SOLID, 4, RGB(150, 0, 0));
+	CPen redPen(PS_SOLID, 2, RGB(200, 0, 0));
 	CPen grnPen(PS_SOLID, 20, RGB(0, 150, 0));
 	CPen bluPen(PS_SOLID, 2, RGB(0, 0, 150));
 	CPen blkPen(PS_SOLID, 1, RGB(0, 0, 0));
 
-	int radius = 15, x = r.left + 100, y = r.top + 50;
-
+	r.left = 500; r.right = client_r.right - 20;
+	r.top = 20; r.bottom = client_r.bottom - 90;
 	DrawRectangle(dc, r.top, r.left, r.right, r.bottom, blkPen);
-	DrawLine(dc, r.left, r.top, r.right, r.bottom, redPen);
-	DrawLine(dc, r.right, r.top, r.left, r.bottom, grnPen);
-	DrawCircle(dc, x, y, radius, bluPen);
-	DrawCircle(dc, x, y + 100, radius, blkPen);
 
-	WriteText(dc, x - radius, y + radius + 5, _T("Here"), RGB(233, 77, 9));
-	WriteText(dc, x - radius, y + 100 + radius + 5, _T("More"), RGB(77, 233, 9));
+	int radius = 20, x = r.left + 100, y = r.top + 50;
+	int xMid = (r.left + r.right) / 2;
+	int yMid = (r.top + r.bottom) / 2;
+	int xStep = r.Width() / (nn_binary.NumLayers() + 1) + 60;
+
+	CString txt;
+	x = r.left + xStep - 100;
+	if (Which == 1)
+	{
+		// Nodes
+		for (int ln = 0; ln < nn_binary.NumLayers(); ln++)
+		{
+			CNNetLayer *l = nn_binary.layers[ln];
+			int yStep = r.Height() / (l->num_neurons + 1) + 10;
+			y = r.top + yStep - 30;
+			for (int nn = 0; nn < l->num_neurons; nn++)
+			{
+				DrawCircle(dc, x, y, radius, redPen);
+				y += yStep;
+			}
+			x += xStep;
+		}
+	}
+
+	if (Which == 2)
+	{
+		// Connections
+		for (int ln = 0; ln < nn_binary.NumLayers(); ln++)
+		{
+			CNNetLayer *l = nn_binary.layers[ln];
+			int yStep = r.Height() / (l->num_neurons + 1) + 10;
+			y = r.top + yStep - 30;
+			for (int nn = 0; nn < l->num_neurons; nn++)
+			{
+				//DrawCircle(dc, x, y, radius, redPen);
+				CNeuron *n = l->NeuronAt(nn);
+				txt.Format(_T("%.2f,%.2f"), n->Input(), n->Output());
+				WriteText(dc, x - radius, y + radius + 5, txt, RGB(0, 0, 0));
+				POSITION pos = n->boutons.GetHeadPosition();
+				int dy = y+35, dx = x + radius + 50;
+				while (pos)
+				{
+					CDendrite *d = n->boutons.GetNext(pos);
+					txt.Format(_T("%.3f"), d->Weight());
+					WriteText(dc, dx, dy, txt, RGB(0, 0, 0));
+					dy += 15;
+				}
+				y += yStep;
+			}
+			x += xStep;
+		}
+	}
 }
 
 void CMind1Dlg::MakeCharBM(LPCTSTR Char)
@@ -300,7 +366,8 @@ void CMind1Dlg::OnPaint()
 	else
 	{
 		CDialog::OnPaint();
-		DrawNet();
+		DrawNet(1);
+		DrawNet(2);
 	}
 }
 
@@ -382,4 +449,10 @@ void CMind1Dlg::OnBnClickedLoad()
 {
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
+}
+
+
+void CMind1Dlg::OnClick_Step()
+{
+	Test1();
 }

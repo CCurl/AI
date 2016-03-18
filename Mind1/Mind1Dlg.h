@@ -41,7 +41,7 @@ public:
 	void DrawLine(CClientDC& dc, int FromX, int FromY, int ToX, int ToY, CPen& pen);
 	void DrawRectangle(CClientDC& dc, int top, int left, int right, int bottom, CPen& pen);
 	void WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF color);
-	void DrawNet();
+	void DrawNet(int Which);
 	void MakeCharBM(LPCTSTR Char);
 	void Refresh();
 	void Test1();
@@ -56,4 +56,5 @@ public:
 	CNeuralNet char_rec;
 	CNeuralNet nn_binary;
 	CStatic anImage;
+	afx_msg void OnClick_Step();
 };

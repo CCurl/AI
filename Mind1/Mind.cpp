@@ -10,9 +10,10 @@ int CNeuron::last_memory_location = 0;
 CNeuron::CNeuron()
 {
 	location = 0; 
-	value = 0; 
+	input = 0; 
+	output = 0;
+	learning_rate = 1.0;
 	//threshold = ((double)rand() / (double)RAND_MAX);
-	threshold = 0.5;
 	activated = false;
 }
 
@@ -67,43 +68,73 @@ void CNeuron::Activate()
 	activated = true; // (this->value > this->threshold);
 	if (activated)
 	{
-		POSITION pos = boutons.GetHeadPosition();
-		while (pos)
-		{
-			boutons.GetNext(pos)->Activate();
-		}
+		CollectInputs();
+		output = CNeuralNet::Sigmoid(this->input);
+		//POSITION pos = boutons.GetHeadPosition();
+		//while (pos)
+		//{
+		//	boutons.GetNext(pos)->Propagate();
+		//}
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::AdjustWeights(double ErrPct)
+void CNeuron::AdjustWeights(double Desired)
 {
-	//activated = true;
-	if (activated)
+	if (dendrites.GetHeadPosition() == NULL)
 	{
-		threshold -= (ErrPct/2);
-		activated = false;
-		POSITION pos = dendrites.GetHeadPosition();
-		while (pos)
-		{
-			CDendrite *d = dendrites.GetNext(pos);
-			d->AdjustWeight(ErrPct);
-			// dendrites.GetNext(pos)->AdjustWeight(ErrPct);
-		}
+		// This is an input neuron
+		return;
 	}
 
-	if (boutons.GetHeadPosition() != NULL)
+	errorTerm = CNeuralNet::Derivative(output);
+	POSITION pos = boutons.GetHeadPosition();
+	if (pos == NULL)
 	{
-		value = 0;
+		// This is an output neuron
+		errorTerm *= (Desired - output);
+		//errorTerm = output*(1 - output)*(Err - output);
+		//double outputWrtNet = CNeuralNet::Derivative(this->output);
+	}
+	else
+	{
+		// This must be a hidden neuron
+		double sumOfOutputs = 0;
+		pos = boutons.GetHeadPosition();
+		while (pos)
+		{
+			CDendrite *d = boutons.GetNext(pos);
+			sumOfOutputs += (d->To()->ErrorTerm() * d->Weight());
+		}
+		errorTerm *= sumOfOutputs;
+	}
+
+	// Now we can adjust our input weights
+	pos = dendrites.GetHeadPosition();
+	while (pos)
+	{
+		CDendrite *d = dendrites.GetNext(pos);
+		double old = d->Weight();
+		double newWeight = d->Weight() + learning_rate*errorTerm*input;
+		d->Weight(newWeight);
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::Collect(double Val)
+void CNeuron::CollectInputs()
 {
-	value += Val;
-	// We can't fire here because a later negative collection event may lower our
-	// value, putting us below the threshold.
+	if (dendrites.GetHeadPosition() != NULL)
+	{
+		input = 0;
+	}
+
+	POSITION pos = dendrites.GetHeadPosition();
+	while (pos)
+	{
+		CDendrite *d = dendrites.GetNext(pos);
+		CNeuron *from = d->From();
+		input += (from->output*d->Weight());
+	}
 }
 
 // ----------------------------------------------------------------------------------------
@@ -150,7 +181,7 @@ LPCTSTR CNeuron::ToString()
 // ----------------------------------------------------------------------------------------
 // CDendrite
 // ----------------------------------------------------------------------------------------
-void CDendrite::Activate()
+void CDendrite::Propagate()
 {
 	CNeuron *tN = CNeuron::NeuronAt(to);
 	if (tN)
@@ -158,7 +189,7 @@ void CDendrite::Activate()
 		// Pass my weight and bias to the neuron.
 		// This causes it to activate itself should its threshold be exceeded.
 		strength++;
-		tN->Collect(weight * bias);
+		//tN->Collect(weight * bias);
 		activated = true;
 	}
 	else
@@ -167,15 +198,8 @@ void CDendrite::Activate()
 	}
 }
 
-// ----------------------------------------------------------------------------------------
-void CDendrite::AdjustWeight(double ErrPct)
-{
-	if (activated)
-	{
-		activated = false;
-		weight += ErrPct; // (weight*ErrPct);
-	}
-}
+CNeuron *CDendrite::From() { return CNeuron::NeuronAt(from); }
+CNeuron *CDendrite::To() { return CNeuron::NeuronAt(to); }
 
 // ----------------------------------------------------------------------------------------
 CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
@@ -186,15 +210,16 @@ CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 		// Make sure there isn't one already
 		if (!d)
 		{
+			Weight = 0; // Test
 			if (Weight == 0)
 			{
 				Weight = ((double)rand() / (double)RAND_MAX);
-				//Weight = 1;
+				//Weight = 0.5;
 			}
 			d = new CDendrite(From->location, To->location, Weight);
 			double b = (((double)rand() / (double)RAND_MAX));
-			d->Bias(b);
-			//d->Bias(1);
+			//d->Bias(b);
+			d->Bias(1);
 			From->GrowBouton(d);
 			To->GrowDendrite(d);
 		}

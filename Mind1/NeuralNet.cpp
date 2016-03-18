@@ -137,7 +137,7 @@ double CNeuralNet::Go()
 	for (int i = 0; i < l->num_neurons; i++)
 	{
 		CNeuron *n = l->NeuronAt(i);
-		n->Value(0);
+		n->Output(0);
 	}
 
 	CNeuron *n = NULL;
@@ -151,7 +151,8 @@ double CNeuralNet::Go()
 		}
 	}
 
-	return n->Value();
+	n->Output(n->Input());
+	return n->Output();
 }
 
 // ----------------------------------------------------------------------------------------
@@ -173,23 +174,36 @@ void CNeuralNet::NumLayers(int Value)
 // ----------------------------------------------------------------------------------------
 void CNeuralNet::SetInput(int Index, double Value)
 {
-	layers[0]->NeuronAt(Index)->Collect(Value);
+	layers[0]->NeuronAt(Index)->Input(Value);
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuralNet::AdjustWeights(double ErrPct)
+void CNeuralNet::AdjustWeights(double Err)
 {
 	// This works backwards through the layers
 	CNNetLayer *l = NULL;
 	CNeuron *n;
-	for (int layer_num = num_layers - 1; layer_num >= 0; layer_num--)
+	for (int layer_num = num_layers - 1; layer_num > 0; layer_num--)
 	{
 		l = layers[layer_num];
 		for (int i = 0; i < l->num_neurons; i++)
 		{
 			n = l->NeuronAt(i);
-			n->AdjustWeights(ErrPct);
+			n->AdjustWeights(Err);
 		}
 	}
 }
 
+// ----------------------------------------------------------------------------------------
+// Static functions
+// ----------------------------------------------------------------------------------------
+double CNeuralNet::Sigmoid(double Val)
+{
+	return 1 / (1 + exp(-Val));
+}
+
+// ----------------------------------------------------------------------------------------
+double CNeuralNet::Derivative(double Val)
+{
+	return Val * (1 - Val);
+}

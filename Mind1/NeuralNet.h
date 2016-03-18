@@ -45,6 +45,9 @@ public:
 	void SetInput(int Index, double Value);
 	double Output(int Index) { return 0; }
 
+	static double Sigmoid(double Val);
+	static double Derivative(double Val);
+
 	int num_layers;
 	CNNetLayer *layers[100];
 	double biases[100];
