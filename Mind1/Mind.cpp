@@ -12,7 +12,7 @@ CNeuron::CNeuron()
 	location = 0; 
 	input = 0; 
 	output = 0;
-	learning_rate = 1.0;
+	learning_rate = 1.5;
 	//threshold = ((double)rand() / (double)RAND_MAX);
 	activated = false;
 }
@@ -213,7 +213,7 @@ CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 			Weight = 0; // Test
 			if (Weight == 0)
 			{
-				Weight = ((double)rand() / (double)RAND_MAX);
+				Weight = ((double)rand() / (double)RAND_MAX) - 0.5;
 				//Weight = 0.5;
 			}
 			d = new CDendrite(From->location, To->location, Weight);

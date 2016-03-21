@@ -44,6 +44,7 @@ BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
 	ON_BN_CLICKED(IDC_Save, &CMind1Dlg::OnBnClickedSave)
 	ON_BN_CLICKED(IDC_Load, &CMind1Dlg::OnBnClickedLoad)
 	ON_BN_CLICKED(IDC_Step, &CMind1Dlg::OnClick_Step)
+	ON_BN_CLICKED(IDC_ErrAdj, &CMind1Dlg::OnClick_ErrAdj)
 END_MESSAGE_MAP()
 
 
@@ -64,7 +65,7 @@ BOOL CMind1Dlg::OnInitDialog()
 	ThinkDelay = 1000;
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
-	SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	//SetTimer(ThinkTimerID, ThinkDelay, NULL);
 
 	if (nn_binary.NumLayers() == 0)
 	{
@@ -98,20 +99,17 @@ void CMind1Dlg::Test1()
 	in2 = tot % 2;
 	in1 = tot >> 1;
 
-	double cumulative_err = 0;
 	nn_binary.SetInput(0, in1);
 	nn_binary.SetInput(1, in2);
-
-	double actual = nn_binary.Go();
-	double desired = double(in1^in2);
-	double diff = desired - actual;
-	cumulative_err += (diff);
-	nn_binary.AdjustWeights(desired);
 
 	strIn1.Format(_T("%d"), in1);
 	strIn2.Format(_T("%d"), in2);
 	SetDlgItemText(IDC_IN1, strIn1);
 	SetDlgItemText(IDC_IN2, strIn2);
+
+	double actual = nn_binary.Go();
+	double desired = double(in1^in2);
+	double diff = desired - actual;
 
 	//for (int i = 0; i < 2; i++)
 	//{
@@ -128,11 +126,14 @@ void CMind1Dlg::Test1()
 	//	}
 	//}
 
-	thought.AppendFormat(_T("(%.2f) "), cumulative_err);
+	thought.AppendFormat(_T("(%.2f) "), diff);
 	SetDlgItemText(IDC_Thought, thought);
 
 	strIn2.Format(_T("%.2f"), desired);
 	SetDlgItemText(IDC_EXPECTED, strIn2);
+
+	strIn2.Format(_T("%.3f"), diff);
+	SetDlgItemText(IDC_Err, strIn2);
 
 	DrawNet(2);
 }
@@ -295,12 +296,14 @@ void CMind1Dlg::DrawNet(int Which)
 				CNeuron *n = l->NeuronAt(nn);
 				txt.Format(_T("%.2f,%.2f"), n->Input(), n->Output());
 				WriteText(dc, x - radius, y + radius + 5, txt, RGB(0, 0, 0));
+				txt.Format(_T("%.3f"), CNeuralNet::Sigmoid(n->Output()));
+				WriteText(dc, x - radius, y + radius + 25, txt, RGB(0, 0, 0));
 				POSITION pos = n->boutons.GetHeadPosition();
 				int dy = y+35, dx = x + radius + 50;
 				while (pos)
 				{
 					CDendrite *d = n->boutons.GetNext(pos);
-					txt.Format(_T("%.3f"), d->Weight());
+					txt.Format(_T("%.3f "), d->Weight());
 					WriteText(dc, dx, dy, txt, RGB(0, 0, 0));
 					dy += 15;
 				}
@@ -410,6 +413,7 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	bool refresh = false; // theMind.Think(lastThought);
 
 	Test1();
+	OnClick_ErrAdj();
 	
 	//SetDlgItemText(IDC_Thought, lastThought);
 	//last_thought = lastThought;
@@ -431,7 +435,8 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 
 void CMind1Dlg::OnBnClickedSave()
 {
-	theMind.Save();
+	KillTimer(ThinkTimerID);
+	//theMind.Save();
 }
 
 void CMind1Dlg::Refresh()
@@ -447,12 +452,33 @@ void CMind1Dlg::Refresh()
 
 void CMind1Dlg::OnBnClickedLoad()
 {
-	theMind.Load(FN_CONCEPTS);
-	Refresh();
+	SetTimer(ThinkTimerID, 50, NULL);
+	//theMind.Load(FN_CONCEPTS);
+	//Refresh();
 }
 
 
 void CMind1Dlg::OnClick_Step()
 {
 	Test1();
+}
+
+
+void CMind1Dlg::OnClick_ErrAdj()
+{
+	CString strIn1, strIn2;
+	GetDlgItemText(IDC_IN1, strIn1);
+	GetDlgItemText(IDC_IN2, strIn2);
+	
+	int in1 = _wtol(strIn1);
+	int in2 = _wtol(strIn2);
+
+	double cumulative_err = 0;
+	nn_binary.SetInput(0, in1);
+	nn_binary.SetInput(1, in2);
+
+	double desired = double(in1^in2);
+
+	nn_binary.AdjustWeights(desired);
+	DrawNet(2);
 }

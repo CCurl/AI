@@ -199,7 +199,11 @@ void CNeuralNet::AdjustWeights(double Err)
 // ----------------------------------------------------------------------------------------
 double CNeuralNet::Sigmoid(double Val)
 {
-	return 1 / (1 + exp(-Val));
+	double ret = 1 / (1 + exp(-Val));
+	//ret = (ret -0.5) * 2;
+	//if (ret < 0)
+	//	ret -= .000001;
+	return ret;
 }
 
 // ----------------------------------------------------------------------------------------

@@ -57,4 +57,5 @@ public:
 	CNeuralNet nn_binary;
 	CStatic anImage;
 	afx_msg void OnClick_Step();
+	afx_msg void OnClick_ErrAdj();
 };
