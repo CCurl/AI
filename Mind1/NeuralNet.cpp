@@ -63,7 +63,6 @@ void CNNetLayer::BuildConnections(CNNetLayer *From)
 				to->offset = ti;
 			}
 			CDendrite *d = CDendrite::GrowDendrite(from, to);
-			d->Bias(this->bias);
 		}
 	}
 }
@@ -132,27 +131,26 @@ void CNeuralNet::DefineLayer(int LayerNumber, int NumNeurons)
 // ----------------------------------------------------------------------------------------
 double CNeuralNet::Go()
 {
-	// Clear out the output neurons
-	CNNetLayer *l = layers[num_layers - 1];
-	for (int i = 0; i < l->num_neurons; i++)
-	{
-		CNeuron *n = l->NeuronAt(i);
-		n->Output(0);
-	}
-
 	CNeuron *n = NULL;
+	CNNetLayer *l = NULL;
 	for (int layer_num = 0; layer_num < num_layers; layer_num++)
 	{
 		l = layers[layer_num];
 		for (int i = 0; i < l->num_neurons; i++)
 		{
 			n = l->NeuronAt(i);
-			n->Activate();
+			n->Activate(l->bias);
 		}
 	}
 
-	n->Output(n->Input());
-	return n->Output();
+	// n->Output(n->Input());
+	return n->output;
+}
+
+// ----------------------------------------------------------------------------------------
+CNeuron *CNeuralNet::NeuronAt(int Layer, int Offset)
+{
+	return ((0 <= Layer) && (Layer < num_layers)) ? layers[Layer]->NeuronAt(Offset) : NULL;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -174,11 +172,11 @@ void CNeuralNet::NumLayers(int Value)
 // ----------------------------------------------------------------------------------------
 void CNeuralNet::SetInput(int Index, double Value)
 {
-	layers[0]->NeuronAt(Index)->Input(Value);
+	layers[0]->NeuronAt(Index)->input = Value;
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuralNet::AdjustWeights(double Err)
+void CNeuralNet::AdjustWeights(double DesiredOutput, double LearningRate)
 {
 	// This works backwards through the layers
 	CNNetLayer *l = NULL;
@@ -189,25 +187,7 @@ void CNeuralNet::AdjustWeights(double Err)
 		for (int i = 0; i < l->num_neurons; i++)
 		{
 			n = l->NeuronAt(i);
-			n->AdjustWeights(Err);
+			n->AdjustWeights(DesiredOutput, LearningRate);
 		}
 	}
-}
-
-// ----------------------------------------------------------------------------------------
-// Static functions
-// ----------------------------------------------------------------------------------------
-double CNeuralNet::Sigmoid(double Val)
-{
-	double ret = 1 / (1 + exp(-Val));
-	//ret = (ret -0.5) * 2;
-	//if (ret < 0)
-	//	ret -= .000001;
-	return ret;
-}
-
-// ----------------------------------------------------------------------------------------
-double CNeuralNet::Derivative(double Val)
-{
-	return Val * (1 - Val);
 }

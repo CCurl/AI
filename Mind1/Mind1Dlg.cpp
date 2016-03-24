@@ -17,6 +17,11 @@
 
 // CMind1Dlg dialog
 
+int GetDesired(int x, int y)
+{
+	return (x^y);
+}
+
 CMind1Dlg::CMind1Dlg(CWnd* pParent /*=NULL*/)
 	: CDialog(CMind1Dlg::IDD, pParent)
 	, theInfo(_T(""))
@@ -45,6 +50,7 @@ BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
 	ON_BN_CLICKED(IDC_Load, &CMind1Dlg::OnBnClickedLoad)
 	ON_BN_CLICKED(IDC_Step, &CMind1Dlg::OnClick_Step)
 	ON_BN_CLICKED(IDC_ErrAdj, &CMind1Dlg::OnClick_ErrAdj)
+	ON_BN_CLICKED(IDC_Reset, &CMind1Dlg::OnBnClickedReset)
 END_MESSAGE_MAP()
 
 
@@ -66,6 +72,8 @@ BOOL CMind1Dlg::OnInitDialog()
 	theMind.Load(FN_CONCEPTS);
 	Refresh();
 	//SetTimer(ThinkTimerID, ThinkDelay, NULL);
+	SetDlgItemText(IDC_LearningRate, _T("20"));
+
 
 	if (nn_binary.NumLayers() == 0)
 	{
@@ -77,7 +85,7 @@ BOOL CMind1Dlg::OnInitDialog()
 		nn_binary.DefineLayer(2, 1);
 		nn_binary.BuildConnections();
 		DrawNet(1);
-		DrawNet(2);
+		OnBnClickedReset();
 	}
 
 
@@ -86,7 +94,6 @@ BOOL CMind1Dlg::OnInitDialog()
 
 void CMind1Dlg::Test1()
 {
-	// XOR
 	CString thought, strIn1, strIn2;
 
 	GetDlgItemText(IDC_IN1, strIn1);
@@ -99,6 +106,16 @@ void CMind1Dlg::Test1()
 	in2 = tot % 2;
 	in1 = tot >> 1;
 
+	if (in1 + in2 == 0)
+	{
+		if (abs(max_err) < 0.0005)
+		{
+			all_done = true;
+		}
+		theMind.epoch++;
+		max_err = 0;
+	}
+
 	nn_binary.SetInput(0, in1);
 	nn_binary.SetInput(1, in2);
 
@@ -107,9 +124,12 @@ void CMind1Dlg::Test1()
 	SetDlgItemText(IDC_IN1, strIn1);
 	SetDlgItemText(IDC_IN2, strIn2);
 
+	CNeuron tmp;
+
 	double actual = nn_binary.Go();
-	double desired = double(in1^in2);
+	double desired = tmp.Sigmoid(GetDesired(in1, in2));
 	double diff = desired - actual;
+	max_err = max(abs(diff), max_err);
 
 	//for (int i = 0; i < 2; i++)
 	//{
@@ -126,10 +146,10 @@ void CMind1Dlg::Test1()
 	//	}
 	//}
 
-	thought.AppendFormat(_T("(%.2f) "), diff);
+	thought.AppendFormat(_T("epoch %d"), theMind.epoch);
 	SetDlgItemText(IDC_Thought, thought);
 
-	strIn2.Format(_T("%.2f"), desired);
+	strIn2.Format(_T("%.3f"), desired);
 	SetDlgItemText(IDC_EXPECTED, strIn2);
 
 	strIn2.Format(_T("%.3f"), diff);
@@ -294,16 +314,16 @@ void CMind1Dlg::DrawNet(int Which)
 			{
 				//DrawCircle(dc, x, y, radius, redPen);
 				CNeuron *n = l->NeuronAt(nn);
-				txt.Format(_T("%.2f,%.2f"), n->Input(), n->Output());
+				txt.Format(_T("%.3f, %.3f"), n->input, n->output);
 				WriteText(dc, x - radius, y + radius + 5, txt, RGB(0, 0, 0));
-				txt.Format(_T("%.3f"), CNeuralNet::Sigmoid(n->Output()));
+				txt.Format(_T("%.6f "), n->error_term);
 				WriteText(dc, x - radius, y + radius + 25, txt, RGB(0, 0, 0));
 				POSITION pos = n->boutons.GetHeadPosition();
 				int dy = y+35, dx = x + radius + 50;
 				while (pos)
 				{
 					CDendrite *d = n->boutons.GetNext(pos);
-					txt.Format(_T("%.3f "), d->Weight());
+					txt.Format(_T("%.3f, %.3f "), d->weight, d->weight_adjusted);
 					WriteText(dc, dx, dy, txt, RGB(0, 0, 0));
 					dy += 15;
 				}
@@ -430,7 +450,8 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	}
 
 	//SetTimer(ThinkTimerID, ThinkDelay, NULL);
-	SetTimer(ThinkTimerID, 50, NULL);
+	if (!all_done)
+		SetTimer(ThinkTimerID, 50, NULL);
 }
 
 void CMind1Dlg::OnBnClickedSave()
@@ -452,7 +473,7 @@ void CMind1Dlg::Refresh()
 
 void CMind1Dlg::OnBnClickedLoad()
 {
-	SetTimer(ThinkTimerID, 50, NULL);
+	SetTimer(ThinkTimerID, 10, NULL);
 	//theMind.Load(FN_CONCEPTS);
 	//Refresh();
 }
@@ -466,19 +487,56 @@ void CMind1Dlg::OnClick_Step()
 
 void CMind1Dlg::OnClick_ErrAdj()
 {
-	CString strIn1, strIn2;
+	CString strIn1, strIn2, strLearningRate;
 	GetDlgItemText(IDC_IN1, strIn1);
 	GetDlgItemText(IDC_IN2, strIn2);
+	GetDlgItemText(IDC_LearningRate, strLearningRate);
 	
 	int in1 = _wtol(strIn1);
 	int in2 = _wtol(strIn2);
+	double LearningRate = _wtof(strLearningRate);
 
-	double cumulative_err = 0;
 	nn_binary.SetInput(0, in1);
 	nn_binary.SetInput(1, in2);
 
-	double desired = double(in1^in2);
+	CNeuron tmp;
 
-	nn_binary.AdjustWeights(desired);
+	double target = GetDesired(in1, in2);
+	double desired = tmp.Sigmoid(target);
+
+	nn_binary.AdjustWeights(desired, LearningRate);
+
+	DrawNet(2);
+}
+
+void CMind1Dlg::OnBnClickedReset()
+{
+	int range = 8;
+	for (int ln = 0; ln < nn_binary.NumLayers(); ln++)
+	{
+		CNNetLayer *l = nn_binary.layers[ln];
+		l->bias = ((double)rand() / (double)RAND_MAX) * 2 - 1;
+		//l->bias = ((double)rand() / (double)RAND_MAX);
+		for (int nn = 0; nn < l->num_neurons; nn++)
+		{
+			CNeuron *n = l->NeuronAt(nn);
+			POSITION pos = n->boutons.GetHeadPosition();
+			while (pos)
+			{
+				CDendrite *d = n->boutons.GetNext(pos);
+				double w = ((double)rand() / (double)RAND_MAX) * range - (range/2);
+				//double w = ((double)rand() / (double)RAND_MAX);
+				d->weight_adjusted = d->weight = w;
+			}
+		}
+	}
+
+	theMind.epoch = 0;
+	all_done = false;
+	max_err = 0;
+
+	SetDlgItemText(IDC_IN1, _T("0"));
+	SetDlgItemText(IDC_IN2, _T("0"));
+
 	DrawNet(2);
 }

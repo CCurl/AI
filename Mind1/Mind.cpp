@@ -12,9 +12,7 @@ CNeuron::CNeuron()
 	location = 0; 
 	input = 0; 
 	output = 0;
-	learning_rate = 1.5;
-	//threshold = ((double)rand() / (double)RAND_MAX);
-	activated = false;
+	error_term = 0;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -58,91 +56,73 @@ CNeuron *CNeuron::AllocateNeuron()
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::Activate()
+void CNeuron::Activate(double Bias)
 {
-	//if (this->layer > 0)
-	//{
-	//	value += 0.00001;	 // TEMP TESTING
-	//}
-
-	activated = true; // (this->value > this->threshold);
-	if (activated)
+	// Only sum the inputs for hidden and output neurons
+	if (dendrites.GetCount() > 0)
 	{
-		CollectInputs();
-		output = CNeuralNet::Sigmoid(this->input);
-		//POSITION pos = boutons.GetHeadPosition();
-		//while (pos)
-		//{
-		//	boutons.GetNext(pos)->Propagate();
-		//}
+		input = 0;
+		POSITION pos = dendrites.GetHeadPosition();
+		while (pos)
+		{
+			CDendrite *d = dendrites.GetNext(pos);
+			// Carry forward the adjustment from the last epoch
+			d->weight = d->weight_adjusted;
+			input += (d->from->output * d->weight);
+		}
+		output = Sigmoid(input + Bias);
+	}
+	else
+	{
+		output = input;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::AdjustWeights(double Desired)
+void CNeuron::AdjustWeights(double Desired, double LearningRate)
 {
-	if (dendrites.GetHeadPosition() == NULL)
+	if (dendrites.GetCount() == 0)
 	{
-		// This is an input neuron
+		// I must be an input neuron
 		return;
 	}
 
-	errorTerm = CNeuralNet::Derivative(output);
+	CDendrite *d = NULL;
 	POSITION pos = boutons.GetHeadPosition();
 	if (pos == NULL)
-	{
-		// This is an output neuron
-		errorTerm *= (Desired - output);
-		//errorTerm = output*(1 - output)*(Err - output);
-		//double outputWrtNet = CNeuralNet::Derivative(this->output);
+	{	
+		// I must be an output neuron
+		error_term = Derivative(output) * (Desired - output);
 	}
 	else
 	{
-		// This must be a hidden neuron
-		double sumOfOutputs = 0;
-		pos = boutons.GetHeadPosition();
+		// I must be a hidden neuron
+		double sumOfOutputErrors = 0;
 		while (pos)
 		{
-			CDendrite *d = boutons.GetNext(pos);
-			sumOfOutputs += (d->To()->ErrorTerm() * d->Weight());
+			d = boutons.GetNext(pos);
+			sumOfOutputErrors += (d->to->error_term * d->weight);
 		}
-		errorTerm *= sumOfOutputs;
+		error_term = Derivative(output) * sumOfOutputErrors;
 	}
-
+	
 	// Now we can adjust our input weights
 	pos = dendrites.GetHeadPosition();
 	while (pos)
 	{
-		CDendrite *d = dendrites.GetNext(pos);
-		double old = d->Weight();
-		double newWeight = d->Weight() + learning_rate*errorTerm*input;
-		d->Weight(newWeight);
+		d = dendrites.GetNext(pos);
+		double input = d->from->output;
+		d->weight_adjusted = d->weight + LearningRate * error_term * input;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::CollectInputs()
+CDendrite *CNeuron::GrowDendriteTo(CNeuron *To, double Weight)
 {
-	if (dendrites.GetHeadPosition() != NULL)
-	{
-		input = 0;
-	}
-
-	POSITION pos = dendrites.GetHeadPosition();
-	while (pos)
-	{
-		CDendrite *d = dendrites.GetNext(pos);
-		CNeuron *from = d->From();
-		input += (from->output*d->Weight());
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CNeuron::GrowDendriteTo(CNeuron *To, double Weight)
-{
-	CDendrite *d = new CDendrite(this->location, To->location, Weight);
+	CDendrite *d = new CDendrite(this, To, Weight);
 	this->GrowBouton(d);
 	To->GrowDendrite(d);
+	return d;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -181,58 +161,21 @@ LPCTSTR CNeuron::ToString()
 // ----------------------------------------------------------------------------------------
 // CDendrite
 // ----------------------------------------------------------------------------------------
-void CDendrite::Propagate()
-{
-	CNeuron *tN = CNeuron::NeuronAt(to);
-	if (tN)
-	{
-		// Pass my weight and bias to the neuron.
-		// This causes it to activate itself should its threshold be exceeded.
-		strength++;
-		//tN->Collect(weight * bias);
-		activated = true;
-	}
-	else
-	{
-		strength = 0;
-	}
-}
-
-CNeuron *CDendrite::From() { return CNeuron::NeuronAt(from); }
-CNeuron *CDendrite::To() { return CNeuron::NeuronAt(to); }
-
-// ----------------------------------------------------------------------------------------
 CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 {
-	CDendrite *d = NULL; // From->FindDendriteTo(To->location);
+	static int count = 0;
+	CDendrite *d = NULL;
 	if (From && To)
 	{
-		// Make sure there isn't one already
-		if (!d)
+		if (Weight == 0)
 		{
-			Weight = 0; // Test
-			if (Weight == 0)
-			{
-				Weight = ((double)rand() / (double)RAND_MAX) - 0.5;
-				//Weight = 0.5;
-			}
-			d = new CDendrite(From->location, To->location, Weight);
-			double b = (((double)rand() / (double)RAND_MAX));
-			//d->Bias(b);
-			d->Bias(1);
-			From->GrowBouton(d);
-			To->GrowDendrite(d);
+			Weight = ((double)rand() / (double)RAND_MAX);
+			if ( count++ % 2 == 1 )
+				Weight = -Weight;
 		}
+		d = From->GrowDendriteTo(To, Weight);
 	}
 	return d;
-}
-
-// ----------------------------------------------------------------------------------------
-CDendrite *CDendrite::GrowDendrite(int From, int To, double Weight)
-{
-	CNeuron *fN = CNeuron::NeuronAt(From);
-	CNeuron *tN = CNeuron::NeuronAt(To);
-	return GrowDendrite(fN, tN, Weight);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -243,16 +186,17 @@ CList<CNeuron *> CMind::activated;
 
 CMind::CMind()
 {
+	srand(GetTickCount());
 	for (int i = 0; i < MEMORY_SIZE; i++)
 	{
 		CNeuron::all_neurons[i] = NULL;
 	}
+	epoch = 0;
 }
 
 // ----------------------------------------------------------------------------------------
 CMind::~CMind()
 {
-	srand(GetTickCount());
 	for (int i = 0; i < MEMORY_SIZE; i++)
 	{
 		if (CNeuron::all_neurons[i])
@@ -331,7 +275,7 @@ int CMind::WorkNeurons()
 	int num = 0;
 	while (activated.GetCount() > 0)
 	{
-		activated.RemoveHead()->Activate();
+		activated.RemoveHead()->Activate(1);
 		++num;
 	}
 	return num;
@@ -350,179 +294,10 @@ bool CMind::Think(CString& Output)
 	int num = activated.GetCount();
 	for (int i = 0; i < num; i++)
 	{
-		activated.RemoveHead()->Activate();
+		activated.RemoveHead()->Activate(1);
 	}
-
-	//if (!text_system.last_output.IsEmpty())
-	//{
-	//	Output = text_system.last_output;
-	//	text_system.last_output.Empty();
-	//}
+	epoch++;
 
 	return false;
 }
 
-// ----------------------------------------------------------------------------------------
-// This is where the rubber meets the road.
-// ----------------------------------------------------------------------------------------
-void CConceptSystem::Fire(CDendrite *Link)
-{
-	//switch (Link->type)
-	//{
-	//case DT_Wakeup:
-	//	break;
-
-	//case DT_Concept:
-	//{
-	//	// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
-	//	CNeuron *node = mind->NeuronAt(Link->pToDendrite->location - 1);
-	//	while (node)
-	//	{
-	//		if (node->type == ConceptNeuron)
-	//		{
-	//			node->ActivateDendritesOfType(DT_TextOut, mind);
-	//			break;
-	//		}
-	//		node = mind->NeuronAt(node->location - 1);
-	//	}
-
-	//	Link->pToDendrite->ActivateDendritesOfType(DT_TextOut, mind);
-	//	// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
-	//}
-	//break;
-
-	//default:
-	//	break;
-	//}
-}
-
-// ----------------------------------------------------------------------------------------
-// CTextSystem
-// ----------------------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------------------
-// Builds a text string by walking backwards through the pathway.
-// ----------------------------------------------------------------------------------------
-//LPCTSTR CTextSystem::BuildOutput(CNeuron *PathEnd)
-//{
-//	CString output;
-
-	//// Handle the case where the node is not a TextNeuron.
-	//if ((PathEnd) && (PathEnd->type != TextNeuron))
-	//{
-	//	CDendrite *link = PathEnd->FindDendrite(DT_TextOut);
-	//	PathEnd = link ? link->pToDendrite : NULL;
-	//}
-
-	//while ((PathEnd) && (PathEnd->type == TextNeuron))
-	//{
-	//	output.AppendChar(TCHAR(PathEnd->value));
-	//	CDendrite *link = PathEnd->FindDendrite(DT_TextOut);
-	//	PathEnd = link ? link->pToDendrite : NULL;
-	//}
-
-	//if (!last_output.IsEmpty())
-	//{
-	//	last_output.AppendChar(' ');
-	//}
-	//last_output.Append(output.MakeReverse());
-
-//	return output;
-//}
-
-// ----------------------------------------------------------------------------------------
-// This is where the rubber meets the road.
-// ----------------------------------------------------------------------------------------
-//void CTextSystem::Fire(CDendrite *Link)
-//{
-	//switch (Link->type)
-	//{
-	//case DT_Wakeup:
-	//	if (input_queue.GetCount() > 0)
-	//	{
-	//		CString input = input_queue.RemoveHead();
-	//		LookAt(input);
-	//	}
-	//	break;
-
-	//case DT_TextIn:
-	//{
-	//	TCHAR ch = NextChar();
-	//	if (ch == NULL)
-	//	{
-	//		Link->pToDendrite->ActivateDendritesNotToType(TextNeuron, mind);
-	//	}
-	//	else
-	//	{
-	//		Link->pToDendrite->ActivateDendritesEqualTo(DT_TextIn, ch, mind);
-	//	}
-	//}
-	//	break;
-
-	//case DT_TextOut:
-	//	BuildOutput(Link->pToDendrite);
-	//	break;
-
-	//default:
-	//	break;
-	//}
-//}
-
-// ----------------------------------------------------------------------------------------
-// Learns the text by building a pathway pToDendrite it.
-// ----------------------------------------------------------------------------------------
-//void CTextSystem::LearnThis(LPCTSTR Input, CNeuron *Thing)
-//{
-//	if (*Input == NULL)
-//		return;
-//
-//	CNeuron *cur = root;
-//	last_received = Input;
-//
-//	while (*Input)
-//	{
-//		int ch = *(Input++);
-//		CDendrite *link = cur->FindDendrite(ch, DT_TextIn);
-//		CNeuron *pToDendrite = link ? link->pToDendrite : NULL;
-//		if (!pToDendrite)
-//		{
-//			pToDendrite = CNeuron::AllocateNeuron(TextNeuron);
-//			pToDendrite->value = ch;
-//			cur->GrowDendriteTo(pToDendrite, ch, DT_TextIn);
-//			pToDendrite->GrowDendriteTo(cur, cur->value, DT_TextOut);
-//		}
-//		cur = pToDendrite;
-//	}
-//
-//	// At this point, cur is where (Thing) should go ...
-//	if (Thing == NULL)
-//	{
-//		// No "Thing" was passed in, so create a new one ...
-//		CDendrite *link = cur->FindDendriteOtherThan(TextNeuron);
-//		Thing = link ? link->pToDendrite : NULL;
-//		if (Thing == NULL)
-//		{
-//			Thing = CNeuron::AllocateNeuron(ConceptNeuron);
-//		}
-//	}
-//
-//	// See if we already know about it ...
-//	if (cur->FindDendriteTo(Thing->location) == NULL)
-//	{
-//		cur->GrowDendriteTo(Thing, 0, DT_Concept);
-//		Thing->GrowDendriteTo(cur, cur->value, DT_TextOut);
-//	}
-//}
-
-// ----------------------------------------------------------------------------------------
-// Handles input provided.
-// If recognized, fires the output nodes.
-// ----------------------------------------------------------------------------------------
-//void CTextSystem::LookAt(LPCTSTR Input)
-//{
-//	last_received = Input;
-//	cur_offset = 0;
-//	TCHAR ch = NextChar();
-//
-//	root->ActivateDendritesEqualTo(DT_TextIn, ch, mind);
-//}

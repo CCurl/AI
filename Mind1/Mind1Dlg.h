@@ -56,6 +56,10 @@ public:
 	CNeuralNet char_rec;
 	CNeuralNet nn_binary;
 	CStatic anImage;
+	bool all_done;
+	double max_err;
+
 	afx_msg void OnClick_Step();
 	afx_msg void OnClick_ErrAdj();
+	afx_msg void OnBnClickedReset();
 };

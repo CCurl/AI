@@ -34,19 +34,17 @@ public:
 	CMind *mind;
 	CNeuron *root;
 
-	void AdjustWeights(double ErrPct);
+	void AdjustWeights(double Desired, double LearningRate);
 	void Bias(int Layer, double Value) { biases[Layer] = Value; }
 	double Bias(int Layer) { return biases[Layer]; }
 	void BuildConnections();
 	void DefineLayer(int LayerNumber, int NumNeurons);
 	double Go();
+	CNeuron *NeuronAt(int Layer, int Offset);
 	void NumLayers(int Value);
 	int NumLayers() { return num_layers; }
 	void SetInput(int Index, double Value);
 	double Output(int Index) { return 0; }
-
-	static double Sigmoid(double Val);
-	static double Derivative(double Val);
 
 	int num_layers;
 	CNNetLayer *layers[100];

@@ -10,41 +10,9 @@
 
 #define MEMORY_SIZE 1024*1024
 
-class CMind;
 class CNeuron;
-class CConceptSystem;
-class CExecutiveSystem;
-class CTextSystem;
-class CVisionSystem;
-
-// ----------------------------------------------------------------------------------------
-// CDendrite
-// ----------------------------------------------------------------------------------------
-class CDendrite
-{
-public:
-	CDendrite() { from = 0;  to = 0; weight = 1; strength = 0; bias = 1; activated = false; }
-	CDendrite(int From, int To, double Weight) { from = From;  to = To; weight = Weight; strength = 0; bias = 1; activated = false; }
-
-	int from, to, strength;
-
-	void Propagate();
-	void Bias(double Value) { bias = Value; }
-	double Bias() { return bias; }
-	CNeuron *From();
-	CNeuron *To();
-	double Weight() { return weight; }
-	void Weight(double Value) { weight = Value; }
-
-private:
-	bool activated;
-	double weight;
-	double bias;
-
-public:
-	static CDendrite *GrowDendrite(CNeuron *From, CNeuron *To, double Weight = 0);
-	static CDendrite *GrowDendrite(int From, int To, double Weight = 0);
-};
+class CDendrite;
+class CMind;
 
 // ----------------------------------------------------------------------------------------
 // CNeuron
@@ -56,30 +24,24 @@ public:
 	CNeuron(int Loc);
 	~CNeuron();
 
-	void Activate();
-	void AdjustWeights(double ErrPct);
-	void CollectInputs();
-	double ErrorTerm() { return errorTerm; }
-	void GrowDendriteTo(CNeuron *To, double Weight = 0);
+	CDendrite *GrowDendriteTo(CNeuron *To, double Weight = 0);
 	void GrowBouton(CDendrite *D) { boutons.AddTail(D); }
 	void GrowDendrite(CDendrite *D) { dendrites.AddTail(D); }
 	LPCTSTR ToString();
-	double Input() { return input; }
-	void Input(double Val) { input = Val; }
-	double Output() { return output; }
-	void Output(double Val) { output = Val; }
+
+	void Activate(double Bias);
+	void AdjustWeights(double DesiredOutput, double LearningRate);
+	double Sigmoid(double Val) { return 1 / (1 + exp(-Val)); }
+	double Derivative(double Val) { return Val * (1 - Val); }
 
 	int location;
 	int layer, offset;
-	bool activated;
-	double learning_rate;
 
-	// This node's connections
+	// This neuron's connections
 	CList<CDendrite *> boutons;		// going out
 	CList<CDendrite *> dendrites;	// coming in
 
-private:
-	double input, output, errorTerm;
+	double input, output, error_term;
 
 	// Class statics ...
 public:
@@ -89,57 +51,22 @@ public:
 	static int last_memory_location;
 };
 
-
 // ----------------------------------------------------------------------------------------
-// CConceptSystem
+// CDendrite
 // ----------------------------------------------------------------------------------------
-class CConceptSystem
+class CDendrite
 {
 public:
-	CConceptSystem() { root = NULL; mind = NULL; }
-	void Fire(CDendrite *Link);
+	CDendrite() { from = to = NULL; weight = weight_adjusted = 1; }
+	CDendrite(CNeuron *From, CNeuron *To, double Weight) { from = From;  to = To; weight = weight_adjusted = Weight; }
 
-	CMind *mind;
-	CNeuron *root;
-};
+	CNeuron *from, *to;
+	double weight, weight_adjusted;
 
-// ----------------------------------------------------------------------------------------
-// CExecutiveSystem
-// ----------------------------------------------------------------------------------------
-class CExecutiveSystem
-{
 public:
-	CExecutiveSystem() { root = NULL; mind = NULL; }
-	void Fire(CDendrite *Link) {}
-
-	CMind *mind;
-	CNeuron *root;
+	static CDendrite *GrowDendrite(CNeuron *From, CNeuron *To, double Weight = 0);
 };
 
-// ----------------------------------------------------------------------------------------
-// CTextSystem
-// ----------------------------------------------------------------------------------------
-class CTextSystem
-{
-public:
-	//CTextSystem() { root = NULL; mind = NULL; }
-	//LPCTSTR BuildOutput(CNeuron *PathEnd);
-	//
-	//void Fire(CDendrite *Link);
-	//void LearnThis(LPCTSTR Input, CNeuron *Thing = NULL);
-	//void LookAt(LPCTSTR Input);
-	//TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
-	//void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
-
-	//CMind *mind;
-	//CNeuron *root;
-
-	//CList<CString> input_queue;
-
-	//CString last_received;
-	//CString last_output;
-	//int cur_offset;
-};
 
 // ----------------------------------------------------------------------------------------
 // CMind
@@ -160,11 +87,14 @@ public:
 	int WorkNeurons();
 
 	CNeuron *memory_root;
-	CConceptSystem concept_system;
-	CExecutiveSystem executive_system;
-	CTextSystem text_system;
+	int epoch;
 
 	CList<CDendrite *> fire_queue;
 	static CList<CNeuron *> activated;
 	static void ActivateNeuron(CNeuron *Neuron) { activated.AddTail(Neuron); }
 };
+
+
+
+
+
