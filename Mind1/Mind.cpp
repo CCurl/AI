@@ -7,12 +7,59 @@ CNeuron *CNeuron::all_neurons[MEMORY_SIZE];
 int CNeuron::last_memory_location = 0;
 
 // ----------------------------------------------------------------------------------------
+// Activation functions
+// ----------------------------------------------------------------------------------------
+static double pi = 3.14159265358979324;
+
+double NormalProbability(double Val)
+{
+	static double coEff = 1 / (sqrt(2 * pi));
+	return coEff * exp(-(Val*Val) / 2);
+}
+
+double ReLU(double Val, double not_used)
+{
+	return Val > 0 ? Val : 0;
+}
+
+double ReLU_Noisy(double Val, double not_used)
+{
+	Val += NormalProbability(Val);
+	return Val > 0 ? Val : 0;
+}
+
+double ReLU_Parametric(double Val, double Param)
+{
+	return Val > 0 ? Val : Param*Val;
+}
+
+double ReLU_Leaky(double Val, double not_used)
+{
+	return ReLU_Parametric(Val, 0.01);
+}
+
+double Sigmoid(double Val, double not_used)
+{
+	return 1 / (1 + exp(-Val));
+}
+
+double Sigmoid_Bool(double Val, double not_used)
+{
+	return Val > 0 ? 1 : 0;
+}
+
+typedef double (*AF_T)(double, double);
+AF_T funcs[6] = { Sigmoid, Sigmoid_Bool, ReLU, ReLU_Leaky, ReLU_Noisy, ReLU_Parametric };
+
+// ----------------------------------------------------------------------------------------
 CNeuron::CNeuron()
 {
+	double xxx = NormalProbability(10);
 	location = 0; 
 	input = 0; 
 	output = 0;
 	error_term = 0;
+	activation_function = SIGMOID;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -70,7 +117,8 @@ void CNeuron::Activate(double Bias)
 			d->weight = d->weight_adjusted;
 			input += (d->from->output * d->weight);
 		}
-		output = Sigmoid(input + Bias);
+		output = funcs[activation_function](input + Bias, 0);
+		//output = Sigmoid(input + Bias);
 	}
 	else
 	{

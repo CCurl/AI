@@ -14,6 +14,16 @@ class CNeuron;
 class CDendrite;
 class CMind;
 
+typedef enum
+{
+	SIGMOID = 0,
+	SIGMOID_BOOL = 1,
+	RELU = 2,
+	RELU_LEAKY = 3,
+	RELU_NOISY = 4,
+	RELU_PARAMETRIC = 5,
+} ActivationFunctiion_T;
+
 // ----------------------------------------------------------------------------------------
 // CNeuron
 // ----------------------------------------------------------------------------------------
@@ -36,6 +46,7 @@ public:
 
 	int location;
 	int layer, offset;
+	ActivationFunctiion_T activation_function;
 
 	// This neuron's connections
 	CList<CDendrite *> boutons;		// going out

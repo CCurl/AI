@@ -82,7 +82,7 @@ BOOL CMind1Dlg::OnInitDialog()
 		nn_binary.root = NULL;
 		nn_binary.NumLayers(3);
 		nn_binary.DefineLayer(0, 2);
-		nn_binary.DefineLayer(1, 5);
+		nn_binary.DefineLayer(1, 4);
 		nn_binary.DefineLayer(2, 1);
 		nn_binary.BuildConnections();
 		DrawNet(1);
@@ -109,7 +109,7 @@ void CMind1Dlg::Test1()
 
 	if (in1 + in2 == 0)
 	{
-		if (abs(max_err) < 0.001)
+		if ((theMind.epoch > 2500) || (abs(max_err) < 0.001))
 		{
 			all_done = true;
 		}
