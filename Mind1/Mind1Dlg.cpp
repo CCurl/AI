@@ -82,9 +82,12 @@ BOOL CMind1Dlg::OnInitDialog()
 		nn_binary.root = NULL;
 		nn_binary.NumLayers(3);
 		nn_binary.DefineLayer(0, 2);
-		nn_binary.DefineLayer(1, 4);
+		nn_binary.DefineLayer(1, 5);
 		nn_binary.DefineLayer(2, 1);
 		nn_binary.BuildConnections();
+		CNeuron *n = nn_binary.NeuronAt(2, 0);
+		//n->activation_function = SIGMOID_BOOL;
+		n->activation_function = SIGMOID;
 		DrawNet(1);
 		OnBnClickedReset();
 	}
@@ -497,6 +500,7 @@ void CMind1Dlg::OnBnClickedLoad()
 void CMind1Dlg::OnClick_Step()
 {
 	Test1();
+	DrawNet(2);
 }
 
 
@@ -517,9 +521,6 @@ void CMind1Dlg::OnClick_ErrAdj()
 	strLearningRate.Format(_T("%2.f"), LR);
 	SetDlgItemText(IDC_LearningRate, strLearningRate);
 
-	nn_binary.SetInput(0, in1);
-	nn_binary.SetInput(1, in2);
-
 	double target = GetDesired(in1, in2);
 	double desired = tmp.Sigmoid(target);
 
@@ -530,10 +531,11 @@ void CMind1Dlg::OnClick_ErrAdj()
 
 void CMind1Dlg::OnBnClickedReset()
 {
+	CNNetLayer *l = NULL;
 	int range = 8;
 	for (int ln = 0; ln < nn_binary.NumLayers(); ln++)
 	{
-		CNNetLayer *l = nn_binary.layers[ln];
+		l = nn_binary.layers[ln];
 		l->bias = ((double)rand() / (double)RAND_MAX) * 2 - 1;
 		//l->bias = ((double)rand() / (double)RAND_MAX);
 		for (int nn = 0; nn < l->num_neurons; nn++)
@@ -549,6 +551,7 @@ void CMind1Dlg::OnBnClickedReset()
 			}
 		}
 	}
+	l->bias = 0;
 
 	theMind.epoch = 0;
 	all_done = false;

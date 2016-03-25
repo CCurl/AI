@@ -18,10 +18,11 @@ typedef enum
 {
 	SIGMOID = 0,
 	SIGMOID_BOOL = 1,
-	RELU = 2,
-	RELU_LEAKY = 3,
-	RELU_NOISY = 4,
-	RELU_PARAMETRIC = 5,
+	BOOL_AF = 2,
+	RELU = 3,
+	RELU_LEAKY = 4,
+	RELU_NOISY = 5,
+	RELU_PARAMETRIC = 6,
 } ActivationFunctiion_T;
 
 // ----------------------------------------------------------------------------------------
@@ -52,7 +53,7 @@ public:
 	CList<CDendrite *> boutons;		// going out
 	CList<CDendrite *> dendrites;	// coming in
 
-	double input, output, error_term;
+	double input, output, error_term, activation_param;
 
 	// Class statics ...
 public:

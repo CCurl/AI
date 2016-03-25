@@ -9,7 +9,7 @@ CNNetLayer::CNNetLayer(int NumNeurons)
 {
 	num_neurons = NumNeurons;
 	neurons = NULL;
-	bias = 1;
+	bias = 0;
 }
 
 

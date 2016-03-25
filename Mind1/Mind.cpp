@@ -43,13 +43,22 @@ double Sigmoid(double Val, double not_used)
 	return 1 / (1 + exp(-Val));
 }
 
-double Sigmoid_Bool(double Val, double not_used)
+double Bool_AF(double Val, double not_used)
 {
-	return Val > 0 ? 1 : 0;
+	const double threshold = 0.5;
+	return Val > threshold ? 1 : 0;
 }
 
-typedef double (*AF_T)(double, double);
-AF_T funcs[6] = { Sigmoid, Sigmoid_Bool, ReLU, ReLU_Leaky, ReLU_Noisy, ReLU_Parametric };
+double Sigmoid_Bool(double Val, double not_used)
+{
+	const double upper = Sigmoid(1, 0);
+	const double lower = Sigmoid(0, 0);
+	const double threshold = (upper + lower) / 2;
+	return Sigmoid(Val, 0) > threshold ? upper : lower;
+}
+
+typedef double(*AF_T)(double, double);
+AF_T funcs[7] = { Sigmoid, Sigmoid_Bool, Bool_AF, ReLU, ReLU_Leaky, ReLU_Noisy, ReLU_Parametric };
 
 // ----------------------------------------------------------------------------------------
 CNeuron::CNeuron()
@@ -60,6 +69,7 @@ CNeuron::CNeuron()
 	output = 0;
 	error_term = 0;
 	activation_function = SIGMOID;
+	activation_param = 0;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -117,7 +127,7 @@ void CNeuron::Activate(double Bias)
 			d->weight = d->weight_adjusted;
 			input += (d->from->output * d->weight);
 		}
-		output = funcs[activation_function](input + Bias, 0);
+		output = funcs[activation_function](input + Bias, activation_param);
 		//output = Sigmoid(input + Bias);
 	}
 	else
