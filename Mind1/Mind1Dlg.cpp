@@ -38,6 +38,7 @@ void CMind1Dlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Text(pDX, IDC_Output2, output2);
 	// DDX_Text(pDX, IDC_Thought, lastThought);
 	DDX_Control(pDX, IDC_STATIC_P, anImage);
+	DDX_Control(pDX, IDC_LIST1, theList);
 }
 
 BEGIN_MESSAGE_MAP(CMind1Dlg, CDialog)
@@ -108,7 +109,7 @@ void CMind1Dlg::Test1()
 
 	if (in1 + in2 == 0)
 	{
-		if (abs(max_err) < 0.0005)
+		if (abs(max_err) < 0.001)
 		{
 			all_done = true;
 		}
@@ -152,10 +153,11 @@ void CMind1Dlg::Test1()
 	strIn2.Format(_T("%.3f"), desired);
 	SetDlgItemText(IDC_EXPECTED, strIn2);
 
-	strIn2.Format(_T("%.3f"), diff);
+	strIn2.Format(_T("%6.3f"), diff);
 	SetDlgItemText(IDC_Err, strIn2);
 
-	DrawNet(2);
+	if (tot == 0)
+		DrawNet(2);
 }
 
 int CMind1Dlg::Train(TCHAR Ch)
@@ -265,6 +267,7 @@ void CMind1Dlg::WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF co
 
 void CMind1Dlg::DrawNet(int Which)
 {
+	// return;
 	CClientDC dc(this);
 	CRect client_r, r;
 	GetClientRect(&client_r);
@@ -274,19 +277,20 @@ void CMind1Dlg::DrawNet(int Which)
 	CPen bluPen(PS_SOLID, 2, RGB(0, 0, 150));
 	CPen blkPen(PS_SOLID, 1, RGB(0, 0, 0));
 
-	r.left = 500; r.right = client_r.right - 20;
-	r.top = 20; r.bottom = client_r.bottom - 90;
-	DrawRectangle(dc, r.top, r.left, r.right, r.bottom, blkPen);
+	r.left = 600; r.right = client_r.right - 20;
+	r.top = 20; r.bottom = client_r.bottom - 100;
 
-	int radius = 20, x = r.left + 100, y = r.top + 50;
+	int radius = 20, x = r.left + 30, y = r.top + 30;
 	int xMid = (r.left + r.right) / 2;
 	int yMid = (r.top + r.bottom) / 2;
-	int xStep = r.Width() / (nn_binary.NumLayers() + 1) + 60;
+	int xStep = r.Width() / (nn_binary.NumLayers() + 1) + 80;
 
 	CString txt;
-	x = r.left + xStep - 100;
+	x = r.left + xStep - 160;
 	if (Which == 1)
 	{
+		DrawRectangle(dc, r.top, r.left, r.right, r.bottom, blkPen);
+
 		// Nodes
 		for (int ln = 0; ln < nn_binary.NumLayers(); ln++)
 		{
@@ -314,18 +318,19 @@ void CMind1Dlg::DrawNet(int Which)
 			{
 				//DrawCircle(dc, x, y, radius, redPen);
 				CNeuron *n = l->NeuronAt(nn);
-				txt.Format(_T("%.3f, %.3f"), n->input, n->output);
+				txt.Format(_T("%.3f, %.3f "), n->input, n->output);
 				WriteText(dc, x - radius, y + radius + 5, txt, RGB(0, 0, 0));
 				txt.Format(_T("%.6f "), n->error_term);
-				WriteText(dc, x - radius, y + radius + 25, txt, RGB(0, 0, 0));
+				WriteText(dc, x - radius, y + radius + 30, txt, RGB(0, 0, 0));
 				POSITION pos = n->boutons.GetHeadPosition();
-				int dy = y+35, dx = x + radius + 50;
+				int dy = y+35, dx = x + radius + 70;
 				while (pos)
 				{
 					CDendrite *d = n->boutons.GetNext(pos);
-					txt.Format(_T("%.3f, %.3f "), d->weight, d->weight_adjusted);
+					txt.Format(_T("%.3f "), d->weight);
+					//txt.Format(_T("%.3f, %.3f "), d->weight, d->weight_adjusted);
 					WriteText(dc, dx, dy, txt, RGB(0, 0, 0));
-					dy += 15;
+					dy += 25;
 				}
 				y += yStep;
 			}
@@ -450,8 +455,18 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	}
 
 	//SetTimer(ThinkTimerID, ThinkDelay, NULL);
-	if (!all_done)
-		SetTimer(ThinkTimerID, 50, NULL);
+	if (all_done)
+	{
+		if (theMind.epoch <= 20)
+		{
+			lastThought.Format(_T("holy crap!"), theMind.epoch, max_err);
+		}
+		lastThought.Format(_T("%ld epochs, err %04f"), theMind.epoch, max_err);
+		theList.AddString(lastThought);
+		theList.SetCurSel(theList.GetCount()-1);
+		OnBnClickedReset();
+	}
+	SetTimer(ThinkTimerID, 50, NULL);
 }
 
 void CMind1Dlg::OnBnClickedSave()
@@ -496,17 +511,21 @@ void CMind1Dlg::OnClick_ErrAdj()
 	int in2 = _wtol(strIn2);
 	double LearningRate = _wtof(strLearningRate);
 
+	CNeuron tmp;
+
+	double LR = tmp.Sigmoid(max_err*10) * 20;
+	strLearningRate.Format(_T("%2.f"), LR);
+	SetDlgItemText(IDC_LearningRate, strLearningRate);
+
 	nn_binary.SetInput(0, in1);
 	nn_binary.SetInput(1, in2);
-
-	CNeuron tmp;
 
 	double target = GetDesired(in1, in2);
 	double desired = tmp.Sigmoid(target);
 
-	nn_binary.AdjustWeights(desired, LearningRate);
+	nn_binary.AdjustWeights(desired, LR);
 
-	DrawNet(2);
+	// DrawNet(2);
 }
 
 void CMind1Dlg::OnBnClickedReset()
@@ -538,5 +557,5 @@ void CMind1Dlg::OnBnClickedReset()
 	SetDlgItemText(IDC_IN1, _T("0"));
 	SetDlgItemText(IDC_IN2, _T("0"));
 
-	DrawNet(2);
+	//DrawNet(2);
 }
