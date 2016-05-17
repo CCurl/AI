@@ -8,8 +8,6 @@
 #define FN_ASSOCS "Associations.txt"
 #define FORGET_THRESHOLD 5
 
-#define MEMORY_SIZE 1024*1024
-
 class CNeuron;
 class CDendrite;
 class CMind;
@@ -35,15 +33,13 @@ public:
 	CNeuron(int Loc);
 	~CNeuron();
 
-	CDendrite *GrowDendriteTo(CNeuron *To, double Weight = 0);
-	void GrowBouton(CDendrite *D) { boutons.AddTail(D); }
-	void GrowDendrite(CDendrite *D) { dendrites.AddTail(D); }
 	LPCTSTR ToString();
 
-	void Activate(double Bias);
+	void Activate();
 	void AdjustWeights(double DesiredOutput, double LearningRate);
 	double Sigmoid(double Val) { return 1 / (1 + exp(-Val)); }
 	double Derivative(double Val) { return Val * (1 - Val); }
+	void GrowDendriteTo(CNeuron *To);
 
 	int location;
 	int layer, offset;
@@ -53,14 +49,13 @@ public:
 	CList<CDendrite *> boutons;		// going out
 	CList<CDendrite *> dendrites;	// coming in
 
-	double input, output, error_term, activation_param;
+	double input, bias, output, error_term, activation_param;
 
 	// Class statics ...
 public:
-	static CNeuron *AllocateNeuron();
 	static CNeuron *NeuronAt(int Location, bool Add = false);
-	static CNeuron *all_neurons[MEMORY_SIZE];
-	static int last_memory_location;
+	static CMap<int, int, CNeuron *, CNeuron *&> all_neurons;
+	static int last_used;
 };
 
 // ----------------------------------------------------------------------------------------
@@ -72,11 +67,17 @@ public:
 	CDendrite() { from = to = NULL; weight = weight_adjusted = 1; }
 	CDendrite(CNeuron *From, CNeuron *To, double Weight) { from = From;  to = To; weight = weight_adjusted = Weight; }
 
+	int id;
 	CNeuron *from, *to;
 	double weight, weight_adjusted;
 
 public:
 	static CDendrite *GrowDendrite(CNeuron *From, CNeuron *To, double Weight = 0);
+	static CDendrite *CDendrite::DendriteAt(int ID);
+
+private:
+	static CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+	static int last_used;
 };
 
 

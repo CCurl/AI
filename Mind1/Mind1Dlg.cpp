@@ -19,7 +19,7 @@
 
 int GetDesired(int x, int y)
 {
-	return (x^y);
+	return (~(x&y));
 }
 
 CMind1Dlg::CMind1Dlg(CWnd* pParent /*=NULL*/)
@@ -82,12 +82,13 @@ BOOL CMind1Dlg::OnInitDialog()
 		nn_binary.root = NULL;
 		nn_binary.NumLayers(3);
 		nn_binary.DefineLayer(0, 2);
-		nn_binary.DefineLayer(1, 5);
+		nn_binary.DefineLayer(1, 4);
 		nn_binary.DefineLayer(2, 1);
 		nn_binary.BuildConnections();
 		CNeuron *n = nn_binary.NeuronAt(2, 0);
-		//n->activation_function = SIGMOID_BOOL;
 		n->activation_function = SIGMOID;
+		//n->activation_function = RELU_LEAKY;
+		n->activation_param = 0.002;
 		DrawNet(1);
 		OnBnClickedReset();
 	}
@@ -131,7 +132,8 @@ void CMind1Dlg::Test1()
 	CNeuron tmp;
 
 	double actual = nn_binary.Go();
-	double desired = tmp.Sigmoid(GetDesired(in1, in2));
+	double target = GetDesired(in1, in2);
+	double desired = tmp.Sigmoid(target);
 	double diff = desired - actual;
 	max_err = max(abs(diff), max_err);
 
@@ -165,17 +167,17 @@ void CMind1Dlg::Test1()
 
 int CMind1Dlg::Train(TCHAR Ch)
 {
-	if (char_rec.NumLayers() == 0)
-	{
-		char_rec.mind = &theMind;
-		char_rec.root = NULL;
-		int inputs = 15 * 18;
-		char_rec.NumLayers(3);
-		char_rec.DefineLayer(0, inputs);
-		char_rec.DefineLayer(1, (inputs * 10) / 10);
-		char_rec.DefineLayer(2, 1);
-		char_rec.BuildConnections();
-	}
+	//if (char_rec.NumLayers() == 0)
+	//{
+		//char_rec.mind = &theMind;
+		//char_rec.root = NULL;
+		//int inputs = 15 * 18;
+		//char_rec.NumLayers(3);
+		//char_rec.DefineLayer(0, inputs);
+		//char_rec.DefineLayer(1, (inputs * 10) / 10);
+		//char_rec.DefineLayer(2, 1);
+		//char_rec.BuildConnections();
+	//}
 	CBitmap bitMap;
 	bitMap.Attach(anImage.GetBitmap());
 
@@ -204,7 +206,7 @@ int CMind1Dlg::Train(TCHAR Ch)
 			data = data << 1;
 
 			double val = (bit) ? 0 : 1;
-			char_rec.SetInput(nnum++, val);
+			//char_rec.SetInput(nnum++, val);
 
 			char ch = (bit) ? '_' : '*';
 			line.AppendChar(ch);
@@ -264,8 +266,16 @@ void CMind1Dlg::DrawRectangle(CClientDC& dc, int top, int left, int right, int b
 
 void CMind1Dlg::WriteText(CClientDC& dc, int x, int y, LPCTSTR text, COLORREF color)
 {
+	if (textFont.m_hObject == NULL)
+	{
+		textFont.CreatePointFont(85, _T("Arial"), &dc);
+	}
+
+	CFont* def_font = dc.SelectObject(&textFont);
+
 	dc.SetTextColor(color);
 	dc.TextOutW(x, y, text, wcslen(text));
+	dc.SelectObject(def_font);
 }
 
 void CMind1Dlg::DrawNet(int Which)
@@ -430,6 +440,7 @@ void CMind1Dlg::OnBnClickedCancel()
 
 	//CImage img;
 	//img.loa
+	textFont.DeleteObject();
 	CDialog::OnCancel();
 }
 
@@ -463,6 +474,9 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 		if (theMind.epoch <= 20)
 		{
 			lastThought.Format(_T("holy crap!"), theMind.epoch, max_err);
+			theList.AddString(lastThought);
+			theList.SetCurSel(theList.GetCount() - 1);
+			return;
 		}
 		lastThought.Format(_T("%ld epochs, err %04f"), theMind.epoch, max_err);
 		theList.AddString(lastThought);
@@ -517,7 +531,8 @@ void CMind1Dlg::OnClick_ErrAdj()
 
 	CNeuron tmp;
 
-	double LR = tmp.Sigmoid(max_err*10) * 20;
+	double LR = tmp.Sigmoid(max_err * 10) * 20;
+	//double LR = 1.05;
 	strLearningRate.Format(_T("%2.f"), LR);
 	SetDlgItemText(IDC_LearningRate, strLearningRate);
 
@@ -525,6 +540,7 @@ void CMind1Dlg::OnClick_ErrAdj()
 	double desired = tmp.Sigmoid(target);
 
 	nn_binary.AdjustWeights(desired, LR);
+	//nn_binary.AdjustWeights(target, LR);
 
 	// DrawNet(2);
 }

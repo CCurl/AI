@@ -3,8 +3,8 @@
 
 #define BUFSIZE 1024
 
-CNeuron *CNeuron::all_neurons[MEMORY_SIZE];
-int CNeuron::last_memory_location = 0;
+CMap<int, int, CNeuron *, CNeuron *&> CNeuron::all_neurons;
+int CNeuron::last_used = 0;
 
 // ----------------------------------------------------------------------------------------
 // Activation functions
@@ -43,18 +43,34 @@ double Sigmoid(double Val, double not_used)
 	return 1 / (1 + exp(-Val));
 }
 
-double Bool_AF(double Val, double not_used)
+double Bool_AF(double Val, double HowClose)
 {
-	const double threshold = 0.5;
-	return Val > threshold ? 1 : 0;
+	if (abs(1 - Val) <= HowClose)
+	{
+		Val = 1;
+	}
+	else if (abs(0 - Val) <= HowClose)
+	{
+		Val = 0;
+	}
+	return Val;
 }
 
-double Sigmoid_Bool(double Val, double not_used)
+double Sigmoid_Bool(double Val, double HowClose)
 {
 	const double upper = Sigmoid(1, 0);
 	const double lower = Sigmoid(0, 0);
-	const double threshold = (upper + lower) / 2;
-	return Sigmoid(Val, 0) > threshold ? upper : lower;
+
+	Val = Sigmoid(Val, 0);
+	if (abs(upper - Val) <= HowClose)
+	{
+		Val = upper;
+	}
+	else if (abs(lower - Val) <= HowClose)
+	{
+		Val = lower;
+	}
+	return Val;
 }
 
 typedef double(*AF_T)(double, double);
@@ -63,12 +79,12 @@ AF_T funcs[7] = { Sigmoid, Sigmoid_Bool, Bool_AF, ReLU, ReLU_Leaky, ReLU_Noisy, 
 // ----------------------------------------------------------------------------------------
 CNeuron::CNeuron()
 {
-	double xxx = NormalProbability(10);
 	location = 0; 
 	input = 0; 
 	output = 0;
 	error_term = 0;
 	activation_function = SIGMOID;
+	//activation_function = RELU;
 	activation_param = 0;
 }
 
@@ -77,6 +93,7 @@ CNeuron::CNeuron(int Loc)
 	: CNeuron()
 {
 	location = Loc;
+	bias = ((double)rand() / (double)RAND_MAX) * 2 - 1;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -90,30 +107,20 @@ CNeuron::~CNeuron()
 		boutons.RemoveHead();
 	}
 
-	// The dendrites will be destroyed by the neuron from whom they emit
-	dendrites.RemoveAll();
-}
-
-// ----------------------------------------------------------------------------------------
-CNeuron *CNeuron::AllocateNeuron()
-{
-	CNeuron *ret = NULL;
-
-	while (last_memory_location < MEMORY_SIZE)
+	// The dendrites will be destroyed by the neurons from whom they emit.
+	// They are the boutons of other neurons.
+	POSITION pos = dendrites.GetHeadPosition();
+	while (pos)
 	{
-		if (all_neurons[last_memory_location] == NULL)
-		{
-			ret = new CNeuron(last_memory_location);
-			all_neurons[last_memory_location] = ret;
-			break;
-		}
-		last_memory_location++;
+		CDendrite *link = dendrites.GetNext(pos);
+		//link->to = NULL;
 	}
-	return ret;
+	dendrites.RemoveAll();
+	CNeuron::all_neurons.RemoveKey(location);
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::Activate(double Bias)
+void CNeuron::Activate()
 {
 	// Only sum the inputs for hidden and output neurons
 	if (dendrites.GetCount() > 0)
@@ -127,11 +134,12 @@ void CNeuron::Activate(double Bias)
 			d->weight = d->weight_adjusted;
 			input += (d->from->output * d->weight);
 		}
-		output = funcs[activation_function](input + Bias, activation_param);
+		output = funcs[activation_function](input + bias, activation_param);
 		//output = Sigmoid(input + Bias);
 	}
 	else
 	{
+		// I must be an input neuron
 		output = input;
 	}
 }
@@ -175,29 +183,26 @@ void CNeuron::AdjustWeights(double Desired, double LearningRate)
 }
 
 // ----------------------------------------------------------------------------------------
-CDendrite *CNeuron::GrowDendriteTo(CNeuron *To, double Weight)
+void CNeuron::GrowDendriteTo(CNeuron *To)
 {
-	CDendrite *d = new CDendrite(this, To, Weight);
-	this->GrowBouton(d);
-	To->GrowDendrite(d);
-	return d;
+	CDendrite::GrowDendrite(this, To);
 }
 
 // ----------------------------------------------------------------------------------------
 CNeuron *CNeuron::NeuronAt(int Location, bool Add)
 {
-	if ((Location < 0) || (Location >= MEMORY_SIZE))
+	CNeuron *ret = NULL;
+	all_neurons.Lookup(Location, ret);
+	if ((ret == NULL) && Add)
 	{
-		return NULL;
+		if (Location < 0)
+		{
+			Location = ++last_used;
+		}
+		ret = new CNeuron(Location);
+		all_neurons[Location] = ret;
 	}
-
-	CNeuron *neuron = all_neurons[Location];
-	if ((neuron == NULL) && Add)
-	{
-		neuron = new CNeuron(Location);
-		all_neurons[Location] = neuron;
-	}
-	return neuron;
+	return ret;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -219,20 +224,34 @@ LPCTSTR CNeuron::ToString()
 // ----------------------------------------------------------------------------------------
 // CDendrite
 // ----------------------------------------------------------------------------------------
+int CDendrite::last_used;
+CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+
 CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 {
-	static int count = 0;
-	CDendrite *d = NULL;
+		static int count = 0;
 	if (From && To)
 	{
 		if (Weight == 0)
 		{
 			Weight = ((double)rand() / (double)RAND_MAX);
-			if ( count++ % 2 == 1 )
+			if (count++ % 2 == 1)
 				Weight = -Weight;
 		}
-		d = From->GrowDendriteTo(To, Weight);
+		CDendrite *new_dendrite = new CDendrite(From, To, Weight);
+		From->boutons.AddTail(new_dendrite);
+		To->dendrites.AddTail(new_dendrite);
+		new_dendrite->id = ++last_used;
+		all_dendrites.SetAt(new_dendrite->id, new_dendrite);
+		return new_dendrite;
 	}
+	return NULL;
+}
+
+CDendrite *CDendrite::DendriteAt(int ID)
+{
+	CDendrite *d = NULL;
+	all_dendrites.Lookup(ID, d);
 	return d;
 }
 
@@ -245,23 +264,24 @@ CList<CNeuron *> CMind::activated;
 CMind::CMind()
 {
 	srand(GetTickCount());
-	for (int i = 0; i < MEMORY_SIZE; i++)
-	{
-		CNeuron::all_neurons[i] = NULL;
-	}
 	epoch = 0;
 }
 
 // ----------------------------------------------------------------------------------------
 CMind::~CMind()
 {
-	for (int i = 0; i < MEMORY_SIZE; i++)
+	while (CNeuron::all_neurons.GetCount() > 0)
 	{
-		if (CNeuron::all_neurons[i])
-			delete CNeuron::all_neurons[i];
+		POSITION pos = CNeuron::all_neurons.GetStartPosition();
+		int loc = 0;
+		CNeuron *n = NULL;
+		CNeuron::all_neurons.GetNextAssoc(pos, loc, n);
+		delete n;
 	}
+	CNeuron::all_neurons.RemoveAll();
 }
 
+// ----------------------------------------------------------------------------------------
 int CMind::Load(char *Filename)
 {
 	// int tmp = 0;
@@ -313,7 +333,7 @@ int CMind::Save()
 	fopen_s(&fp, FN_THEMIND, "wt");
 	if (fp)
 	{
-		for (int i = 0; i < CNeuron::last_memory_location; i++)
+		for (int i = 0; i < CNeuron::last_used; i++)
 		{
 			CNeuron *n = NeuronAt(i);
 			if (n)
@@ -333,7 +353,7 @@ int CMind::WorkNeurons()
 	int num = 0;
 	while (activated.GetCount() > 0)
 	{
-		activated.RemoveHead()->Activate(1);
+		activated.RemoveHead()->Activate();
 		++num;
 	}
 	return num;
@@ -352,7 +372,7 @@ bool CMind::Think(CString& Output)
 	int num = activated.GetCount();
 	for (int i = 0; i < num; i++)
 	{
-		activated.RemoveHead()->Activate(1);
+		activated.RemoveHead()->Activate();
 	}
 	epoch++;
 

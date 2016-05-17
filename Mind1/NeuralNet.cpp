@@ -50,19 +50,19 @@ void CNNetLayer::BuildConnections(CNNetLayer *From)
 			CNeuron *to = this->NeuronAt(ti);
 			if (from == NULL)
 			{
-				From->neurons[fi] = CNeuron::AllocateNeuron();
+				From->neurons[fi] = CNeuron::NeuronAt(-1, true);
 				from = From->NeuronAt(fi);
 				from->layer = From->layer_num;
 				from->offset = fi;
 			}
 			if (to == NULL)
 			{
-				this->neurons[ti] = CNeuron::AllocateNeuron();
+				this->neurons[ti] = CNeuron::NeuronAt(-1, true);
 				to = this->NeuronAt(ti);
 				to->layer = this->layer_num;
 				to->offset = ti;
 			}
-			CDendrite *d = CDendrite::GrowDendrite(from, to);
+			from->GrowDendriteTo(to);
 		}
 	}
 }
@@ -139,7 +139,7 @@ double CNeuralNet::Go()
 		for (int i = 0; i < l->num_neurons; i++)
 		{
 			n = l->NeuronAt(i);
-			n->Activate(l->bias);
+			n->Activate();
 		}
 	}
 

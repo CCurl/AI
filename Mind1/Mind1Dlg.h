@@ -63,4 +63,5 @@ public:
 	afx_msg void OnClick_ErrAdj();
 	afx_msg void OnBnClickedReset();
 	CListBox theList;
+	CFont textFont;
 };
