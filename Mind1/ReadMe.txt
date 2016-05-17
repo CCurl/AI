@@ -35,6 +35,6 @@
 // # https ://en.wikibooks.org/wiki/Perl_Programming/Unicode_UTF-8
 // # encode("utf8", "$psi", 1);  # 2016feb16:
 // 	$psy[$t] = "$psi,$act,$hlc,$pos,$jux,$pre,$tkb,$seq,$num,$mfn,$dba,$rv";
-// }  # 2016jan23: End of KbLoad; return to MindBoot knowledge bootstrap.
+// }  # 2016jan23: End of KbLoad; return pToDendron MindBoot knowledge bootstrap.
 
 // $audmem[$t] = "$pho,$act,$audpsi"

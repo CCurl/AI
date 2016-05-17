@@ -1,141 +1,85 @@
 #pragma once
 
 #include "StringUtils.h"
+#include "NeuralNet.h"
 
 #define FN_THEMIND "TheMind.txt"
 #define FN_CONCEPTS "Concepts.txt"
 #define FN_ASSOCS "Associations.txt"
 #define FORGET_THRESHOLD 5
 
-#define MEMORY_SIZE 1024*1024
-
-typedef enum {
-	MindRoot = 0, 
-	// Systems first
-	TextSystem, ConceptSystem, ExecutiveSystem, 
-
-	TextNode, ConceptNode, ExecutiveNode,
-	MemType_Unknown = 999
-} MEMNODE_TYPE;
-
-typedef enum {
-	LINK_Unknown, LINK_TextIn, LINK_TextOut, LINK_Concept, LINK_Wakeup
-} NODELINK_TYPE;
-
+class CNeuron;
+class CDendrite;
 class CMind;
-class CMemoryNode;
-class CConceptSystem;
-class CExecutiveSystem;
-class CTextSystem;
+
+typedef enum
+{
+	SIGMOID = 0,
+	SIGMOID_BOOL = 1,
+	BOOL_AF = 2,
+	RELU = 3,
+	RELU_LEAKY = 4,
+	RELU_NOISY = 5,
+	RELU_PARAMETRIC = 6,
+} ActivationFunctiion_T;
 
 // ----------------------------------------------------------------------------------------
-// CNodeLink
+// CNeuron
 // ----------------------------------------------------------------------------------------
-class CNodeLink
+class CNeuron
 {
 public:
-	CNodeLink() { to = NULL; threshold = 0; type = LINK_Unknown; }
-	CNodeLink(CMemoryNode *To, int Threshold, NODELINK_TYPE Type) { to = To; threshold = Threshold; type = Type; }
-	CMemoryNode *to;
-	int threshold;
-	NODELINK_TYPE type;
-};
-
-// ----------------------------------------------------------------------------------------
-// CMemoryNode
-// ----------------------------------------------------------------------------------------
-class CMemoryNode
-{
-public:
-	CMemoryNode() { type = MemType_Unknown; location = 0; value = 0; }
-	CMemoryNode(MEMNODE_TYPE Type) { type = Type; location = 0; value = 0; }
-	CMemoryNode(MEMNODE_TYPE Type, int Loc) { type = Type; location = Loc; value = 0; }
-	~CMemoryNode();
-
-	void LinkTo(CMemoryNode *To, int Trigger, NODELINK_TYPE Type);
-
-	CNodeLink *FindLinkTo(int Location);
-	CNodeLink *FindLink(NODELINK_TYPE Type);
-	CNodeLink *FindLink(int Threshold, NODELINK_TYPE Type);
-	CNodeLink *FindLinkOtherThan(MEMNODE_TYPE Type);
-
-	void FireLinksOfType(NODELINK_TYPE Type, CMind *Mind);
-	void FireLinksToType(MEMNODE_TYPE Type, CMind *Mind) {}
-	void FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind);
-	void FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind);
-	void FireLinksNotEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
-	void FireLinksGreaterThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
-	void FireLinksLessThan(NODELINK_TYPE Type, int Threshold, CMind *Mind) {}
-
-	bool HasLinkTo(CMemoryNode *To) { return false; }
+	CNeuron();
+	CNeuron(int Loc);
+	~CNeuron();
 
 	LPCTSTR ToString();
 
-	int location;
-	int value;
-	MEMNODE_TYPE type;
+	void Activate();
+	void AdjustWeights(double DesiredOutput, double LearningRate);
+	double Sigmoid(double Val) { return 1 / (1 + exp(-Val)); }
+	double Derivative(double Val) { return Val * (1 - Val); }
+	void GrowDendriteTo(CNeuron *To);
 
-	// This node's links
-	CList<CNodeLink *> links;
+	int location;
+	int layer, offset;
+	ActivationFunctiion_T activation_function;
+
+	// This neuron's connections
+	CList<CDendrite *> boutons;		// going out
+	CList<CDendrite *> dendrites;	// coming in
+
+	double input, bias, output, error_term, activation_param;
 
 	// Class statics ...
-	static CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	static CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
-	static CMemoryNode *all_nodes[MEMORY_SIZE];
-	static int last_memory_location;
+public:
+	static CNeuron *NeuronAt(int Location, bool Add = false);
+	static CMap<int, int, CNeuron *, CNeuron *&> all_neurons;
+	static int last_used;
 };
 
-
 // ----------------------------------------------------------------------------------------
-// CConceptSystem
+// CDendrite
 // ----------------------------------------------------------------------------------------
-class CConceptSystem
+class CDendrite
 {
 public:
-	CConceptSystem() { root = NULL; mind = NULL; }
-	void Fire(CNodeLink *Link);
+	CDendrite() { from = to = NULL; weight = weight_adjusted = 1; }
+	CDendrite(CNeuron *From, CNeuron *To, double Weight) { from = From;  to = To; weight = weight_adjusted = Weight; }
 
-	CMind *mind;
-	CMemoryNode *root;
-};
+	int id;
+	CNeuron *from, *to;
+	double weight, weight_adjusted;
 
-// ----------------------------------------------------------------------------------------
-// CExecutiveSystem
-// ----------------------------------------------------------------------------------------
-class CExecutiveSystem
-{
 public:
-	CExecutiveSystem() { root = NULL; mind = NULL; }
-	void Fire(CNodeLink *Link) {}
+	static CDendrite *GrowDendrite(CNeuron *From, CNeuron *To, double Weight = 0);
+	static CDendrite *CDendrite::DendriteAt(int ID);
 
-	CMind *mind;
-	CMemoryNode *root;
+private:
+	static CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+	static int last_used;
 };
 
-// ----------------------------------------------------------------------------------------
-// CTextSystem
-// ----------------------------------------------------------------------------------------
-class CTextSystem
-{
-public:
-	CTextSystem() { root = NULL; mind = NULL; }
-	LPCTSTR BuildOutput(CMemoryNode *PathEnd);
-	
-	void Fire(CNodeLink *Link);
-	void LearnThis(LPCTSTR Input, CMemoryNode *Thing = NULL);
-	void LookAt(LPCTSTR Input);
-	TCHAR NextChar() { return cur_offset >= last_received.GetLength() ? NULL : last_received.GetAt(cur_offset++); }
-	void ReceiveInput(LPCTSTR Input) { input_queue.AddTail(Input); }
-
-	CMind *mind;
-	CMemoryNode *root;
-
-	CList<CString> input_queue;
-
-	CString last_received;
-	CString last_output;
-	int cur_offset;
-};
 
 // ----------------------------------------------------------------------------------------
 // CMind
@@ -146,18 +90,24 @@ public:
 	CMind();
 	~CMind();
 
-	CMemoryNode *AllocateNode(MEMNODE_TYPE Type = MemType_Unknown);
-	void Fire(CNodeLink *Link) { if (Link) fire_queue.AddTail(Link); }
-	void FireOne(CNodeLink *Link);
+	CNeuron *AllocateNeuron();
+	void Fire(CDendrite *Link) { if (Link) fire_queue.AddTail(Link); }
+	void FireOne(CDendrite *Link);
 	int Load(char *Filename);
-	CMemoryNode *NodeAt(int Location, bool Add = false, MEMNODE_TYPE Type = MemType_Unknown);
+	CNeuron *NeuronAt(int Location, bool Add = false);
 	int Save();
 	bool Think(CString& Output);
+	int WorkNeurons();
 
-	CMemoryNode *memory_root;
-	CConceptSystem concept_system;
-	CExecutiveSystem executive_system;
-	CTextSystem text_system;
+	CNeuron *memory_root;
+	int epoch;
 
-	CList<CNodeLink *> fire_queue;
+	CList<CDendrite *> fire_queue;
+	static CList<CNeuron *> activated;
+	static void ActivateNeuron(CNeuron *Neuron) { activated.AddTail(Neuron); }
 };
+
+
+
+
+

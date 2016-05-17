@@ -3,233 +3,285 @@
 
 #define BUFSIZE 1024
 
-CMemoryNode *CMemoryNode::all_nodes[MEMORY_SIZE];
-int CMemoryNode::last_memory_location = 0;
+CMap<int, int, CNeuron *, CNeuron *&> CNeuron::all_neurons;
+int CNeuron::last_used = 0;
 
 // ----------------------------------------------------------------------------------------
-// CMemoryNode
+// Activation functions
 // ----------------------------------------------------------------------------------------
-//int CMemoryNode::AddInput(CMemoryNode *Input)
-//{ 
-//	inputs.Add(Input);
-//	return inputs.GetSize(); 
-//}
+static double pi = 3.14159265358979324;
 
-// ----------------------------------------------------------------------------------------
-//int CMemoryNode::AddOutput(CMemoryNode *Output)
-//{
-//	outputs.Add(Output);
-//	return outputs.GetSize();
-//}
-
-// ----------------------------------------------------------------------------------------
-CMemoryNode::~CMemoryNode()
+double NormalProbability(double Val)
 {
-	while (links.GetCount())
+	static double coEff = 1 / (sqrt(2 * pi));
+	return coEff * exp(-(Val*Val) / 2);
+}
+
+double ReLU(double Val, double not_used)
+{
+	return Val > 0 ? Val : 0;
+}
+
+double ReLU_Noisy(double Val, double not_used)
+{
+	Val += NormalProbability(Val);
+	return Val > 0 ? Val : 0;
+}
+
+double ReLU_Parametric(double Val, double Param)
+{
+	return Val > 0 ? Val : Param*Val;
+}
+
+double ReLU_Leaky(double Val, double not_used)
+{
+	return ReLU_Parametric(Val, 0.01);
+}
+
+double Sigmoid(double Val, double not_used)
+{
+	return 1 / (1 + exp(-Val));
+}
+
+double Bool_AF(double Val, double HowClose)
+{
+	if (abs(1 - Val) <= HowClose)
 	{
-		CNodeLink *link = links.GetHead();
+		Val = 1;
+	}
+	else if (abs(0 - Val) <= HowClose)
+	{
+		Val = 0;
+	}
+	return Val;
+}
+
+double Sigmoid_Bool(double Val, double HowClose)
+{
+	const double upper = Sigmoid(1, 0);
+	const double lower = Sigmoid(0, 0);
+
+	Val = Sigmoid(Val, 0);
+	if (abs(upper - Val) <= HowClose)
+	{
+		Val = upper;
+	}
+	else if (abs(lower - Val) <= HowClose)
+	{
+		Val = lower;
+	}
+	return Val;
+}
+
+typedef double(*AF_T)(double, double);
+AF_T funcs[7] = { Sigmoid, Sigmoid_Bool, Bool_AF, ReLU, ReLU_Leaky, ReLU_Noisy, ReLU_Parametric };
+
+// ----------------------------------------------------------------------------------------
+CNeuron::CNeuron()
+{
+	location = 0; 
+	input = 0; 
+	output = 0;
+	error_term = 0;
+	activation_function = SIGMOID;
+	//activation_function = RELU;
+	activation_param = 0;
+}
+
+// ----------------------------------------------------------------------------------------
+CNeuron::CNeuron(int Loc)
+	: CNeuron()
+{
+	location = Loc;
+	bias = ((double)rand() / (double)RAND_MAX) * 2 - 1;
+}
+
+// ----------------------------------------------------------------------------------------
+CNeuron::~CNeuron()
+{
+	// Destroy my boutons ...
+	while (boutons.GetCount())
+	{
+		CDendrite *link = boutons.GetHead();
 		delete link;
-		links.RemoveHead();
+		boutons.RemoveHead();
+	}
+
+	// The dendrites will be destroyed by the neurons from whom they emit.
+	// They are the boutons of other neurons.
+	POSITION pos = dendrites.GetHeadPosition();
+	while (pos)
+	{
+		CDendrite *link = dendrites.GetNext(pos);
+		//link->to = NULL;
+	}
+	dendrites.RemoveAll();
+	CNeuron::all_neurons.RemoveKey(location);
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuron::Activate()
+{
+	// Only sum the inputs for hidden and output neurons
+	if (dendrites.GetCount() > 0)
+	{
+		input = 0;
+		POSITION pos = dendrites.GetHeadPosition();
+		while (pos)
+		{
+			CDendrite *d = dendrites.GetNext(pos);
+			// Carry forward the adjustment from the last epoch
+			d->weight = d->weight_adjusted;
+			input += (d->from->output * d->weight);
+		}
+		output = funcs[activation_function](input + bias, activation_param);
+		//output = Sigmoid(input + Bias);
+	}
+	else
+	{
+		// I must be an input neuron
+		output = input;
 	}
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::AllocateNode(MEMNODE_TYPE Type)
+void CNeuron::AdjustWeights(double Desired, double LearningRate)
 {
-	CMemoryNode *ret = NULL;
-
-	while (last_memory_location < MEMORY_SIZE)
+	if (dendrites.GetCount() == 0)
 	{
-		if (all_nodes[last_memory_location] == NULL)
+		// I must be an input neuron
+		return;
+	}
+
+	CDendrite *d = NULL;
+	POSITION pos = boutons.GetHeadPosition();
+	if (pos == NULL)
+	{	
+		// I must be an output neuron
+		error_term = Derivative(output) * (Desired - output);
+	}
+	else
+	{
+		// I must be a hidden neuron
+		double sumOfOutputErrors = 0;
+		while (pos)
 		{
-			ret = new CMemoryNode(Type, last_memory_location);
-			all_nodes[last_memory_location] = ret;
-			break;
+			d = boutons.GetNext(pos);
+			sumOfOutputErrors += (d->to->error_term * d->weight);
 		}
-		last_memory_location++;
+		error_term = Derivative(output) * sumOfOutputErrors;
+	}
+	
+	// Now we can adjust our input weights
+	pos = dendrites.GetHeadPosition();
+	while (pos)
+	{
+		d = dendrites.GetNext(pos);
+		double input = d->from->output;
+		d->weight_adjusted = d->weight + LearningRate * error_term * input;
+	}
+}
+
+// ----------------------------------------------------------------------------------------
+void CNeuron::GrowDendriteTo(CNeuron *To)
+{
+	CDendrite::GrowDendrite(this, To);
+}
+
+// ----------------------------------------------------------------------------------------
+CNeuron *CNeuron::NeuronAt(int Location, bool Add)
+{
+	CNeuron *ret = NULL;
+	all_neurons.Lookup(Location, ret);
+	if ((ret == NULL) && Add)
+	{
+		if (Location < 0)
+		{
+			Location = ++last_used;
+		}
+		ret = new CNeuron(Location);
+		all_neurons[Location] = ret;
 	}
 	return ret;
 }
 
 // ----------------------------------------------------------------------------------------
-CNodeLink *CMemoryNode::FindLink(int Threshold, NODELINK_TYPE Type)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if ((link->threshold == Threshold) && (link->type == Type))
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CNodeLink *CMemoryNode::FindLink(NODELINK_TYPE Type)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if (link->type == Type)
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CNodeLink *CMemoryNode::FindLinkOtherThan(MEMNODE_TYPE Type)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if (link->to->type != Type)
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-CNodeLink *CMemoryNode::FindLinkTo(int Location)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if (link->to->location == Location)
-		{
-			return link;
-		}
-	}
-	return NULL;
-}
-
-// ----------------------------------------------------------------------------------------
-void CMemoryNode::FireLinksEqualTo(NODELINK_TYPE Type, int Threshold, CMind *Mind)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if ((link->type == Type) && (link->threshold == Threshold))
-		{
-			Mind->Fire(link);
-		}
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CMemoryNode::FireLinksOfType(NODELINK_TYPE Type, CMind *Mind)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if (link->type == Type)
-		{
-			Mind->Fire(link);
-		}
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CMemoryNode::FireLinksNotToType(MEMNODE_TYPE Type, CMind *Mind)
-{
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		if (link->to->type != Type)
-		{
-			Mind->Fire(link);
-		}
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-void CMemoryNode::LinkTo(CMemoryNode *To, int Threshold, NODELINK_TYPE Type)
-{
-	links.AddTail(new CNodeLink(To, Threshold, Type));
-}
-
-// ----------------------------------------------------------------------------------------
-CMemoryNode *CMemoryNode::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
-{
-	if ((Location < 0) || (Location >= MEMORY_SIZE))
-		return NULL;
-
-	CMemoryNode *node = all_nodes[Location];
-	if ((node == NULL) && Add)
-	{
-		node = new CMemoryNode(Type, Location);
-		all_nodes[Location] = node;
-	}
-	return node;
-}
-
-// ----------------------------------------------------------------------------------------
-LPCTSTR CMemoryNode::ToString()
+LPCTSTR CNeuron::ToString()
 {
 	static CString ret;
-	ret.Format(_T("%d,%d,%d,%d"), location, type, value, links.GetCount());
+	//ret.Format(_T("%d,%d,%d,%d"), location, type, value, boutons.GetCount());
 
-	POSITION pos = links.GetHeadPosition();
-	while (pos)
-	{
-		CNodeLink *link = links.GetNext(pos);
-		ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->to->location);
-	}
+	//POSITION pos = boutons.GetHeadPosition();
+	//while (pos)
+	//{
+	//	CDendrite *link = boutons.GetNext(pos);
+	//	ret.AppendFormat(_T(",%d-%d-%d"), link->type, link->threshold, link->pToDendrite->location);
+	//}
 
-	if (type == TextNode)
-	{
-		ret.AppendFormat(_T(",%c"), char(value));
-	}
 	return ret;
+}
+
+// ----------------------------------------------------------------------------------------
+// CDendrite
+// ----------------------------------------------------------------------------------------
+int CDendrite::last_used;
+CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+
+CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
+{
+		static int count = 0;
+	if (From && To)
+	{
+		if (Weight == 0)
+		{
+			Weight = ((double)rand() / (double)RAND_MAX);
+			if (count++ % 2 == 1)
+				Weight = -Weight;
+		}
+		CDendrite *new_dendrite = new CDendrite(From, To, Weight);
+		From->boutons.AddTail(new_dendrite);
+		To->dendrites.AddTail(new_dendrite);
+		new_dendrite->id = ++last_used;
+		all_dendrites.SetAt(new_dendrite->id, new_dendrite);
+		return new_dendrite;
+	}
+	return NULL;
+}
+
+CDendrite *CDendrite::DendriteAt(int ID)
+{
+	CDendrite *d = NULL;
+	all_dendrites.Lookup(ID, d);
+	return d;
 }
 
 // ----------------------------------------------------------------------------------------
 // CMind
 // ----------------------------------------------------------------------------------------
+
+CList<CNeuron *> CMind::activated;
+
 CMind::CMind()
 {
-	for (int i = 0; i < MEMORY_SIZE; i++)
-	{
-		CMemoryNode::all_nodes[i] = NULL;
-	}
-
-	memory_root = NodeAt(MindRoot, true, MindRoot);
-
-	text_system.root = NodeAt(TextSystem, true, TextSystem);
-	text_system.mind = this;
-
-	concept_system.root = NodeAt(ConceptSystem, true, ConceptSystem);
-	concept_system.mind = this;
-
-	executive_system.root = NodeAt(ExecutiveSystem, true, ExecutiveSystem);
-	executive_system.mind = this;
-
-	memory_root->LinkTo(NodeAt(ConceptSystem), 0, LINK_Wakeup);
-	memory_root->LinkTo(NodeAt(ExecutiveSystem), 0, LINK_Wakeup);
-	memory_root->LinkTo(NodeAt(TextSystem), 0, LINK_Wakeup);
+	srand(GetTickCount());
+	epoch = 0;
 }
 
 // ----------------------------------------------------------------------------------------
 CMind::~CMind()
 {
-	for (int i = 0; i < MEMORY_SIZE; i++)
+	while (CNeuron::all_neurons.GetCount() > 0)
 	{
-		if (CMemoryNode::all_nodes[i])
-			delete CMemoryNode::all_nodes[i];
+		POSITION pos = CNeuron::all_neurons.GetStartPosition();
+		int loc = 0;
+		CNeuron *n = NULL;
+		CNeuron::all_neurons.GetNextAssoc(pos, loc, n);
+		delete n;
 	}
+	CNeuron::all_neurons.RemoveAll();
 }
 
+// ----------------------------------------------------------------------------------------
 int CMind::Load(char *Filename)
 {
 	// int tmp = 0;
@@ -251,13 +303,13 @@ int CMind::Load(char *Filename)
 			CString *w = words.GetFirst();
 			while (w)
 			{
-				text_system.LearnThis(*w);
+				//text_system.LearnThis(*w);
 				w = words.GetNext();
 			}
 			// int id = words.GetIntAt(0);
 			// id = ++tmp;
 			// LPCTSTR name = words.GetAt(1);
-			//CMemoryNode *theThing = text_system.LearnThis(line);
+			//CNeuron *theThing = text_system.LearnThis(line);
 			num++;
 		}
 		fclose(fp);
@@ -267,9 +319,9 @@ int CMind::Load(char *Filename)
 }
 
 // ----------------------------------------------------------------------------------------
-CMemoryNode *CMind::NodeAt(int Location, bool Add, MEMNODE_TYPE Type)
+CNeuron *CMind::NeuronAt(int Location, bool Add)
 {
-	return CMemoryNode::NodeAt(Location, Add, Type);
+	return CNeuron::NeuronAt(Location, Add);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -281,9 +333,9 @@ int CMind::Save()
 	fopen_s(&fp, FN_THEMIND, "wt");
 	if (fp)
 	{
-		for (int i = 0; i < CMemoryNode::last_memory_location; i++)
+		for (int i = 0; i < CNeuron::last_used; i++)
 		{
-			CMemoryNode *n = NodeAt(i);
+			CNeuron *n = NeuronAt(i);
 			if (n)
 			{
 				fputws(n->ToString(), fp);
@@ -296,220 +348,34 @@ int CMind::Save()
 }
 
 // ----------------------------------------------------------------------------------------
-void CMind::FireOne(CNodeLink *Link)
+int CMind::WorkNeurons()
 {
-	switch (Link->type)
+	int num = 0;
+	while (activated.GetCount() > 0)
 	{
-	case LINK_Wakeup:
-		text_system.Fire(Link);
-		concept_system.Fire(Link);
-		executive_system.Fire(Link);
-		break;
-
-	case LINK_TextIn:
-	case LINK_TextOut:
-		text_system.Fire(Link);
-		break;
-
-	case LINK_Concept:
-		concept_system.Fire(Link);
-		break;
-
-	default:
-		break;
+		activated.RemoveHead()->Activate();
+		++num;
 	}
+	return num;
 }
 
 // ----------------------------------------------------------------------------------------
 bool CMind::Think(CString& Output)
 {
-	const int MAX_CYCLES_PER_WAKEUP = 100;
-	int cycle = 0;
+	//const int MAX_CYCLES_PER_WAKEUP = 100;
+	//int cycle = 0;
 
-	// Send out a "wakeup" event
-	CNodeLink wakeup_link(NULL, 0, LINK_Wakeup);
-	FireOne(&wakeup_link);
-
-	while (fire_queue.GetCount() > 0)
+	// Activation may cause neurons in the next layer to be activated.
+	// If we process those before making it through all the neurons in the current
+	// layer, then we can end up with incorrect brain waves.
+	// Therefore, only activate the neurons that are currently in the list.
+	int num = activated.GetCount();
+	for (int i = 0; i < num; i++)
 	{
-		FireOne(fire_queue.RemoveHead());
-
-		if (++cycle > MAX_CYCLES_PER_WAKEUP)
-		{
-			break;
-		}
+		activated.RemoveHead()->Activate();
 	}
-
-	if (!text_system.last_output.IsEmpty())
-	{
-		Output = text_system.last_output;
-		text_system.last_output.Empty();
-	}
+	epoch++;
 
 	return false;
 }
 
-// ----------------------------------------------------------------------------------------
-// This is where the rubber meets the road.
-// ----------------------------------------------------------------------------------------
-void CConceptSystem::Fire(CNodeLink *Link)
-{
-	switch (Link->type)
-	{
-	case LINK_Wakeup:
-		break;
-
-	case LINK_Concept:
-	{
-		// vvvvvvvvvv --- Testing --- vvvvvvvvvvvv
-		CMemoryNode *node = mind->NodeAt(Link->to->location - 1);
-		while (node)
-		{
-			if (node->type == ConceptNode)
-			{
-				node->FireLinksOfType(LINK_TextOut, mind);
-				break;
-			}
-			node = mind->NodeAt(node->location - 1);
-		}
-
-		Link->to->FireLinksOfType(LINK_TextOut, mind);
-		// ^^^^^^^^^^ --- Testing --- ^^^^^^^^^^^^
-	}
-	break;
-
-	default:
-		break;
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-// CTextSystem
-// ----------------------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------------------
-// Builds a text string by walking backwards through the pathway.
-// ----------------------------------------------------------------------------------------
-LPCTSTR CTextSystem::BuildOutput(CMemoryNode *PathEnd)
-{
-	CString output;
-
-	// Handle the case where the node is not a TextNode.
-	if ((PathEnd) && (PathEnd->type != TextNode))
-	{
-		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
-		PathEnd = link ? link->to : NULL;
-	}
-
-	while ((PathEnd) && (PathEnd->type == TextNode))
-	{
-		output.AppendChar(TCHAR(PathEnd->value));
-		CNodeLink *link = PathEnd->FindLink(LINK_TextOut);
-		PathEnd = link ? link->to : NULL;
-	}
-
-	if (!last_output.IsEmpty())
-	{
-		last_output.AppendChar(' ');
-	}
-	last_output.Append(output.MakeReverse());
-
-	return last_output;
-}
-
-// ----------------------------------------------------------------------------------------
-// This is where the rubber meets the road.
-// ----------------------------------------------------------------------------------------
-void CTextSystem::Fire(CNodeLink *Link)
-{
-	switch (Link->type)
-	{
-	case LINK_Wakeup:
-		if (input_queue.GetCount() > 0)
-		{
-			CString input = input_queue.RemoveHead();
-			LookAt(input);
-		}
-		break;
-
-	case LINK_TextIn:
-	{
-		TCHAR ch = NextChar();
-		if (ch == NULL)
-		{
-			Link->to->FireLinksNotToType(TextNode, mind);
-		}
-		else
-		{
-			Link->to->FireLinksEqualTo(LINK_TextIn, ch, mind);
-		}
-	}
-		break;
-
-	case LINK_TextOut:
-		BuildOutput(Link->to);
-		break;
-
-	default:
-		break;
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-// Learns the text by building a pathway to it.
-// ----------------------------------------------------------------------------------------
-void CTextSystem::LearnThis(LPCTSTR Input, CMemoryNode *Thing)
-{
-	if (*Input == NULL)
-		return;
-
-	CMemoryNode *cur = root;
-	last_received = Input;
-
-	while (*Input)
-	{
-		int ch = *(Input++);
-		CNodeLink *link = cur->FindLink(ch, LINK_TextIn);
-		CMemoryNode *to = link ? link->to : NULL;
-		if (!to)
-		{
-			to = CMemoryNode::AllocateNode(TextNode);
-			to->value = ch;
-			cur->LinkTo(to, ch, LINK_TextIn);
-			to->LinkTo(cur, cur->value, LINK_TextOut);
-		}
-		cur = to;
-	}
-
-	// At this point, cur is where (Thing) should go ...
-	if (Thing == NULL)
-	{
-		// No "Thing" was passed in, so create a new one ...
-		CNodeLink *link = cur->FindLinkOtherThan(TextNode);
-		Thing = link ? link->to : NULL;
-		if (Thing == NULL)
-		{
-			Thing = CMemoryNode::AllocateNode(ConceptNode);
-		}
-	}
-
-	// See if we already know about it ...
-	if (cur->FindLinkTo(Thing->location) == NULL)
-	{
-		cur->LinkTo(Thing, 0, LINK_Concept);
-		Thing->LinkTo(cur, cur->value, LINK_TextOut);
-	}
-}
-
-// ----------------------------------------------------------------------------------------
-// Handles input provided.
-// If recognized, fires the output nodes.
-// ----------------------------------------------------------------------------------------
-void CTextSystem::LookAt(LPCTSTR Input)
-{
-	last_received = Input;
-	cur_offset = 0;
-	TCHAR ch = NextChar();
-
-	root->FireLinksEqualTo(LINK_TextIn, ch, mind);
-}
