@@ -34,22 +34,26 @@ public:
 	~CNeuron();
 
 	LPCTSTR ToString();
-
-	void Activate();
+	//last_moment >= Moment
+	void Activate(int Moment);
 	void AdjustWeights(double DesiredOutput, double LearningRate);
 	double Sigmoid(double Val) { return 1 / (1 + exp(-Val)); }
 	double Derivative(double Val) { return Val * (1 - Val); }
+	void Fire() { nnet->Fired.AddTail(this); }
 	void GrowDendriteTo(CNeuron *To);
 
+	int fired; // 0 => not fired, 1 => fired
 	int location;
-	int layer, offset;
 	ActivationFunctiion_T activation_function;
 
 	// This neuron's connections
 	CList<CDendrite *> boutons;		// going out
 	CList<CDendrite *> dendrites;	// coming in
 
-	double input, bias, output, error_term, activation_param;
+	CNeuralNet *nnet;
+
+	int last_moment;
+	int input, bias, output, error_term, activation_param;
 
 	// Class statics ...
 public:
@@ -76,8 +80,8 @@ public:
 	static CDendrite *CDendrite::DendriteAt(int ID);
 
 private:
-	static CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
-	static int last_used;
+	//static CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+	//static int last_used;
 };
 
 
@@ -90,24 +94,11 @@ public:
 	CMind();
 	~CMind();
 
-	CNeuron *AllocateNeuron();
-	void Fire(CDendrite *Link) { if (Link) fire_queue.AddTail(Link); }
-	void FireOne(CDendrite *Link);
 	int Load(char *Filename);
-	CNeuron *NeuronAt(int Location, bool Add = false);
-	int Save();
-	bool Think(CString& Output);
-	int WorkNeurons();
+	int Save(char *Filename);
+	bool NextMoment();
+	CNeuralNet *CreateNetwork();
 
-	CNeuron *memory_root;
-	int epoch;
-
-	CList<CDendrite *> fire_queue;
-	static CList<CNeuron *> activated;
-	static void ActivateNeuron(CNeuron *Neuron) { activated.AddTail(Neuron); }
+	CList<CNeuralNet *>Nets;
+	int moment;
 };
-
-
-
-
-

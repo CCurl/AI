@@ -79,13 +79,14 @@ AF_T funcs[7] = { Sigmoid, Sigmoid_Bool, Bool_AF, ReLU, ReLU_Leaky, ReLU_Noisy, 
 // ----------------------------------------------------------------------------------------
 CNeuron::CNeuron()
 {
-	location = 0; 
 	input = 0; 
 	output = 0;
+	fired = 0;
 	error_term = 0;
 	activation_function = SIGMOID;
 	//activation_function = RELU;
 	activation_param = 0;
+	nnet = NULL;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -120,21 +121,28 @@ CNeuron::~CNeuron()
 }
 
 // ----------------------------------------------------------------------------------------
-void CNeuron::Activate()
+void CNeuron::Activate(int Moment)
 {
+	if (last_moment >= Moment)
+	{
+		return;
+	}
+	last_moment = Moment;
+	double sum = 0;
+
 	// Only sum the inputs for hidden and output neurons
 	if (dendrites.GetCount() > 0)
 	{
-		input = 0;
 		POSITION pos = dendrites.GetHeadPosition();
 		while (pos)
 		{
 			CDendrite *d = dendrites.GetNext(pos);
 			// Carry forward the adjustment from the last epoch
 			d->weight = d->weight_adjusted;
-			input += (d->from->output * d->weight);
+			sum += (d->from->output * d->weight);
 		}
-		output = funcs[activation_function](input + bias, activation_param);
+		output = funcs[activation_function](sum + bias, activation_param);
+		input = sum;
 		//output = Sigmoid(input + Bias);
 	}
 	else
@@ -224,8 +232,8 @@ LPCTSTR CNeuron::ToString()
 // ----------------------------------------------------------------------------------------
 // CDendrite
 // ----------------------------------------------------------------------------------------
-int CDendrite::last_used;
-CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
+//int CDendrite::last_used;
+//CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
 
 CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 {
@@ -241,8 +249,8 @@ CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 		CDendrite *new_dendrite = new CDendrite(From, To, Weight);
 		From->boutons.AddTail(new_dendrite);
 		To->dendrites.AddTail(new_dendrite);
-		new_dendrite->id = ++last_used;
-		all_dendrites.SetAt(new_dendrite->id, new_dendrite);
+		//new_dendrite->id = ++last_used;
+		//all_dendrites.SetAt(new_dendrite->id, new_dendrite);
 		return new_dendrite;
 	}
 	return NULL;
@@ -251,7 +259,7 @@ CDendrite *CDendrite::GrowDendrite(CNeuron *From, CNeuron *To, double Weight)
 CDendrite *CDendrite::DendriteAt(int ID)
 {
 	CDendrite *d = NULL;
-	all_dendrites.Lookup(ID, d);
+	//all_dendrites.Lookup(ID, d);
 	return d;
 }
 
@@ -259,12 +267,10 @@ CDendrite *CDendrite::DendriteAt(int ID)
 // CMind
 // ----------------------------------------------------------------------------------------
 
-CList<CNeuron *> CMind::activated;
-
 CMind::CMind()
 {
 	srand(GetTickCount());
-	epoch = 0;
+	moment = 0;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -319,62 +325,44 @@ int CMind::Load(char *Filename)
 }
 
 // ----------------------------------------------------------------------------------------
-CNeuron *CMind::NeuronAt(int Location, bool Add)
-{
-	return CNeuron::NeuronAt(Location, Add);
-}
-
-// ----------------------------------------------------------------------------------------
-int CMind::Save()
+int CMind::Save(char *Filename)
 {
 	CString line;
 	int num = 0;
 	FILE *fp = NULL;
-	fopen_s(&fp, FN_THEMIND, "wt");
+	fopen_s(&fp, Filename, "wt");
 	if (fp)
 	{
-		for (int i = 0; i < CNeuron::last_used; i++)
-		{
-			CNeuron *n = NeuronAt(i);
-			if (n)
-			{
-				fputws(n->ToString(), fp);
-				fputws(_T("\n"), fp);
-			}
-		}
 		fclose(fp);
 	}
 	return num;
 }
 
 // ----------------------------------------------------------------------------------------
-int CMind::WorkNeurons()
+CNeuralNet *CMind::CreateNetwork()
 {
-	int num = 0;
-	while (activated.GetCount() > 0)
-	{
-		activated.RemoveHead()->Activate();
-		++num;
-	}
-	return num;
+	CNeuralNet *nn = new CNeuralNet();
+	Nets.AddTail(nn);
+	nn->mind = this;
+	return nn;
 }
 
 // ----------------------------------------------------------------------------------------
-bool CMind::Think(CString& Output)
+bool CMind::NextMoment()
 {
-	//const int MAX_CYCLES_PER_WAKEUP = 100;
-	//int cycle = 0;
+	++moment;
 
 	// Activation may cause neurons in the next layer to be activated.
 	// If we process those before making it through all the neurons in the current
 	// layer, then we can end up with incorrect brain waves.
 	// Therefore, only activate the neurons that are currently in the list.
-	int num = activated.GetCount();
-	for (int i = 0; i < num; i++)
+
+	POSITION pos = Nets.GetHeadPosition();
+	while (pos)
 	{
-		activated.RemoveHead()->Activate();
+		CNeuralNet *n = Nets.GetNext(pos);
+		n->NextMoment(moment);
 	}
-	epoch++;
 
 	return false;
 }

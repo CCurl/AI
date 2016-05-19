@@ -53,8 +53,8 @@ public:
 	CString output2;
 	int ThinkTimerID, ThinkDelay;
 	CString lastThought;
-	CNeuralNet char_rec;
-	CNeuralNet nn_binary;
+	CNeuron *in1, *in2, *out;
+	CNeuralNet *nn_binary;
 	CStatic anImage;
 	bool all_done;
 	double max_err;
