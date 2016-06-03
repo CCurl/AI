@@ -2,7 +2,7 @@
 
 class CMind;
 class CNeuron;
-class CDendrite;
+class CSynapse;
 
 class CNeuralNet
 {
@@ -10,12 +10,12 @@ public:
 	CNeuralNet();
 	~CNeuralNet();
 
-	CDendrite *GrowDendrite(CNeuron *From, CNeuron *To);
-	CNeuron *GrowNeuron();
+	CNeuron *GrowNeuron(int Layer);
+	void GrowNeurons(int Num, int Layer);
+	void GrowSynapses(int Num);
 	void NextMoment(int Moment);
 
 	CMind *mind;
-	CList<CDendrite *>Dendrites;
 	CList<CNeuron *>Neurons;
-	CList<CNeuron *>Fired;
+	CList<CNeuron *>ActivateQueue;
 };

@@ -57,7 +57,7 @@ public:
 	CNeuralNet *nn_binary;
 	CStatic anImage;
 	bool all_done;
-	double max_err;
+	int num_errors;
 
 	afx_msg void OnClick_Step();
 	afx_msg void OnClick_ErrAdj();

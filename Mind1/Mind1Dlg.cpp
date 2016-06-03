@@ -19,7 +19,7 @@
 
 int GetDesired(int x, int y)
 {
-	return (~(x&y));
+	return (x^y);
 }
 
 CMind1Dlg::CMind1Dlg(CWnd* pParent /*=NULL*/)
@@ -79,68 +79,72 @@ BOOL CMind1Dlg::OnInitDialog()
 	if (nn_binary == NULL)
 	{
 		nn_binary = theMind.CreateNetwork();
-		in1 = nn_binary->GrowNeuron();
-		in2 = nn_binary->GrowNeuron();
-		out = nn_binary->GrowNeuron();
-		for (int i = 0; i < 4; i++)
-		{
-			CNeuron *n = nn_binary->GrowNeuron();
-			nn_binary->GrowDendrite(in1, n);
-			nn_binary->GrowDendrite(in2, n);
-			nn_binary->GrowDendrite(n, out);
-		}
-		//nn_binary->GrowDendrite(in1, out);
-		//nn_binary->GrowDendrite(in2, out);
+		in1 = nn_binary->GrowNeuron(1);
+		in2 = nn_binary->GrowNeuron(1);
+		in1->potential = in1->resting_potential = FIRE_THRESHOLD;
+		in2->potential = in2->resting_potential = FIRE_THRESHOLD;
+		out = nn_binary->GrowNeuron(999);
+		nn_binary->GrowNeurons(20, 2);
+		nn_binary->GrowSynapses(350);
 	}
+	num_errors = 0;
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
 void CMind1Dlg::Test1()
 {
+	static int cur = 0;
 	CString thought, strIn1, strIn2;
 
-	GetDlgItemText(IDC_IN1, strIn1);
-	GetDlgItemText(IDC_IN2, strIn2);
-	
-	int cur = (((in1->input<<1) + in2->input) + 1) & 0x03;
-	in1->input = cur >> 1;
-	in2->input = cur & 0x01;
-	in1->Fire();
-	in2->Fire();
+	//GetDlgItemText(IDC_IN1, strIn1);
+	//GetDlgItemText(IDC_IN2, strIn2);
 
-	if (cur == 0)
+	cur = (cur + 1) & 0x03;
+	int x = cur >> 1;
+	int y = cur & 0x01;
+
+	in1->ReceiveSignal(x, false);
+	in2->ReceiveSignal(y, false);
+
+	if (cur == 1)
 	{
-		if ((theMind.moment > 2500) || (abs(max_err) < 0.001))
+		if ((theMind.moment > 2500) || (num_errors == 0))
 		{
 			all_done = true;
 		}
 		theMind.moment++;
-		max_err = 0;
+		num_errors = 0;
 	}
 
-	strIn1.Format(_T("%d"), in1->input);
-	strIn2.Format(_T("%d"), in2->input);
+	strIn1.Format(_T("%d"), x);
+	strIn2.Format(_T("%d"), y);
 	SetDlgItemText(IDC_IN1, strIn1);
 	SetDlgItemText(IDC_IN2, strIn2);
 
+	out->fire_count = 0;
 	theMind.NextMoment();
+	if ((GetDesired(x, y) == 0) != (out->fire_count == 0))
+	{
+		++num_errors;
+	}
+
 	OnClick_ErrAdj();
 
-	double actual = out->output;
-	double target = GetDesired(in1->input, in2->input);
-	double desired = in1->Sigmoid(target);
-	double diff = desired - actual;
-	max_err = max(abs(diff), max_err);
+	//double actual = out->output;
+	//double target = GetDesired(in1->input, in2->input);
+	//double desired = in1->Sigmoid(target);
+	//double diff = desired - actual;
+	//max_err = max(abs(diff), max_err);
 
 	thought.AppendFormat(_T("epoch %d"), theMind.moment);
 	SetDlgItemText(IDC_Thought, thought);
 
-	strIn2.Format(_T("%.3f"), desired);
-	SetDlgItemText(IDC_EXPECTED, strIn2);
+	//strIn2.Format(_T("%.3f"), desired);
+	//SetDlgItemText(IDC_EXPECTED, strIn2);
 
-	strIn2.Format(_T("%6.3f"), diff);
-	SetDlgItemText(IDC_Err, strIn2);
+	//strIn2.Format(_T("%6.3f"), diff);
+	//SetDlgItemText(IDC_Err, strIn2);
 
 	if (cur == 0)
 		DrawNet(2);
@@ -316,11 +320,11 @@ void CMind1Dlg::DrawNet(int Which)
 	//			WriteText(dc, x - radius, y + radius + 5, txt, RGB(0, 0, 0));
 	//			txt.Format(_T("%.6f "), n->error_term);
 	//			WriteText(dc, x - radius, y + radius + 30, txt, RGB(0, 0, 0));
-	//			POSITION pos = n->boutons.GetHeadPosition();
+	//			POSITION pos = n->synapses.GetHeadPosition();
 	//			int dy = y+35, dx = x + radius + 70;
 	//			while (pos)
 	//			{
-	//				CDendrite *d = n->boutons.GetNext(pos);
+	//				CSynapse *d = n->synapses.GetNext(pos);
 	//				txt.Format(_T("%.3f "), d->weight);
 	//				//txt.Format(_T("%.3f, %.3f "), d->weight, d->weight_adjusted);
 	//				WriteText(dc, dx, dy, txt, RGB(0, 0, 0));
@@ -449,12 +453,12 @@ void CMind1Dlg::OnTimer(UINT_PTR TimerID)
 	{
 		if (theMind.moment <= 20)
 		{
-			lastThought.Format(_T("holy crap!"), theMind.moment, max_err);
+			lastThought.Format(_T("holy crap!"));
 			theList.AddString(lastThought);
 			theList.SetCurSel(theList.GetCount() - 1);
 			return;
 		}
-		lastThought.Format(_T("%ld epochs, err %04f"), theMind.moment, max_err);
+		lastThought.Format(_T("%ld epochs, err %d"), theMind.moment, num_errors);
 		theList.AddString(lastThought);
 		theList.SetCurSel(theList.GetCount()-1);
 		OnBnClickedReset();
@@ -507,13 +511,13 @@ void CMind1Dlg::OnClick_ErrAdj()
 
 	CNeuron tmp;
 
-	double LR = tmp.Sigmoid(max_err * 10) * 20;
+	//double LR = tmp.Sigmoid(max_err * 10) * 20;
 	//double LR = 1.05;
-	strLearningRate.Format(_T("%2.f"), LR);
-	SetDlgItemText(IDC_LearningRate, strLearningRate);
+	//strLearningRate.Format(_T("%2.f"), LR);
+	//SetDlgItemText(IDC_LearningRate, strLearningRate);
 
 	double target = GetDesired(in1, in2);
-	double desired = tmp.Sigmoid(target);
+	//double desired = tmp.Sigmoid(target);
 
 	//nn_binary.AdjustWeights(desired, LR);
 	//nn_binary.AdjustWeights(target, LR);
@@ -533,10 +537,10 @@ void CMind1Dlg::OnBnClickedReset()
 	//	for (int nn = 0; nn < l->num_neurons; nn++)
 	//	{
 	//		CNeuron *n = l->NeuronAt(nn);
-	//		POSITION pos = n->boutons.GetHeadPosition();
+	//		POSITION pos = n->synapses.GetHeadPosition();
 	//		while (pos)
 	//		{
-	//			CDendrite *d = n->boutons.GetNext(pos);
+	//			CSynapse *d = n->synapses.GetNext(pos);
 	//			double w = ((double)rand() / (double)RAND_MAX) * range - (range/2);
 	//			//double w = ((double)rand() / (double)RAND_MAX);
 	//			d->weight_adjusted = d->weight = w;
@@ -547,7 +551,7 @@ void CMind1Dlg::OnBnClickedReset()
 
 	theMind.moment = 0;
 	all_done = false;
-	max_err = 0;
+	num_errors = 0;
 
 	SetDlgItemText(IDC_IN1, _T("0"));
 	SetDlgItemText(IDC_IN2, _T("0"));

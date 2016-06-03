@@ -9,7 +9,7 @@
 #define FORGET_THRESHOLD 5
 
 class CNeuron;
-class CDendrite;
+class CSynapse;
 class CMind;
 
 typedef enum
@@ -21,67 +21,65 @@ typedef enum
 	RELU_LEAKY = 4,
 	RELU_NOISY = 5,
 	RELU_PARAMETRIC = 6,
-} ActivationFunctiion_T;
+} ActivationFunction_T;
 
 // ----------------------------------------------------------------------------------------
 // CNeuron
 // ----------------------------------------------------------------------------------------
+#define MAX_NEURONS (1024*8)
+#define POTENTIAL_RESTING -30
+#define FIRE_THRESHOLD 0
+
 class CNeuron
 {
 public:
 	CNeuron();
-	CNeuron(int Loc);
 	~CNeuron();
 
 	LPCTSTR ToString();
-	//last_moment >= Moment
 	void Activate(int Moment);
-	void AdjustWeights(double DesiredOutput, double LearningRate);
-	double Sigmoid(double Val) { return 1 / (1 + exp(-Val)); }
-	double Derivative(double Val) { return Val * (1 - Val); }
-	void Fire() { nnet->Fired.AddTail(this); }
-	void GrowDendriteTo(CNeuron *To);
+	void Die();
+	CSynapse *FindSynapseTo(CNeuron *To);
+	void Fire();
+	CSynapse *GrowSynapseTo(CNeuron *To);
+	void ReceiveSignal(int potential, bool inhibitory);
+	void RemoveSynapseTo(CNeuron *To);
 
-	int fired; // 0 => not fired, 1 => fired
-	int location;
-	ActivationFunctiion_T activation_function;
+	int loc, layer;
+	int potential, resting_potential;
+	int last_fired, fire_count;
+	bool queued;
+	//ActivationFunction_T activation_function;
 
 	// This neuron's connections
-	CList<CDendrite *> boutons;		// going out
-	CList<CDendrite *> dendrites;	// coming in
+	CList<CSynapse *> synapses;
 
 	CNeuralNet *nnet;
 
-	int last_moment;
-	int input, bias, output, error_term, activation_param;
-
-	// Class statics ...
-public:
-	static CNeuron *NeuronAt(int Location, bool Add = false);
-	static CMap<int, int, CNeuron *, CNeuron *&> all_neurons;
-	static int last_used;
+	static CNeuron *all_neurons[MAX_NEURONS];
+	static int num_neurons;
+	CNeuron *NeuronAt(int Loc);
 };
 
 // ----------------------------------------------------------------------------------------
-// CDendrite
+// CSynapse
 // ----------------------------------------------------------------------------------------
-class CDendrite
+#define MAX_SYNAPSES (MAX_NEURONS*64)
+#define SYNAPSE_POTENTIAL 4
+
+class CSynapse
 {
 public:
-	CDendrite() { from = to = NULL; weight = weight_adjusted = 1; }
-	CDendrite(CNeuron *From, CNeuron *To, double Weight) { from = From;  to = To; weight = weight_adjusted = Weight; }
+	CSynapse();
+	~CSynapse();
+	LPCTSTR ToString(int FromID);
 
-	int id;
-	CNeuron *from, *to;
-	double weight, weight_adjusted;
+	CNeuron *to;
+	int id, potential;
+	bool inhibitory;
 
-public:
-	static CDendrite *GrowDendrite(CNeuron *From, CNeuron *To, double Weight = 0);
-	static CDendrite *CDendrite::DendriteAt(int ID);
-
-private:
-	//static CMap<int, int, CDendrite *, CDendrite *&> CDendrite::all_dendrites;
-	//static int last_used;
+	static CSynapse *all_synapses[MAX_SYNAPSES];
+	static CSynapse *SynapseAt(int Loc);
 };
 
 
